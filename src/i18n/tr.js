@@ -238,7 +238,7 @@
     'vis.d.ocr': 'Görüntüdeki yazıları bulur ve okur',
     'vis.d.plate': 'Plakaları bulur ve okur',
     'vis.d.vehicle': 'Otomobil, kamyon, otobüs, motosiklet, bisiklet, tren, tekne',
-    'vis.d.aircraft': 'Uçakları işaretler',
+    'vis.d.aircraft': 'Uçak, helikopter ve insansız hava araçlarını işaretler',
     'vis.d.animal': 'Kuş, kedi, köpek, at, koyun, inek, fil, ayı, zebra, zürafa',
     'vis.d.object': '80 nesne türünün tamamı',
     'vis.n.rate': 'Saniyedeki analiz sayısı (en çok)',

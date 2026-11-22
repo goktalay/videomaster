@@ -27,8 +27,8 @@ test('katalog: her modülün modelleri tanımlı, adresleri ve sağlamaları tam
     assert.ok(m.license, `${m.id}: lisans`);
     assert.ok(m.files.length && m.files[0].name === 'model.onnx');
     for (const f of m.files) {
-      assert.match(f.url, /^https:\/\/(github\.com|media\.githubusercontent\.com|raw\.githubusercontent\.com)\//, `${m.id}: adres`);
-      assert.match(f.sha256, /^[0-9a-f]{64}$/, `${m.id}: sha256`);
+      assert.match(f.url, /^https:\/\/(github\.com|media\.githubusercontent\.com|raw\.githubusercontent\.com|huggingface\.co)\//, `${m.id}: adres`);
+      if (!f.loose) assert.match(f.sha256, /^[0-9a-f]{64}$/, `${m.id}: sha256`);
       assert.ok(f.size > 1000, `${m.id}: boyut`);
     }
   }
@@ -136,7 +136,7 @@ test('modeller: indirme (sağlama doğrulaması, ilerleme), kullanıcı modeli e
   try {
     // Hazır modeller başta inmemiş görünür
     const list = models.list();
-    assert.deepStrictEqual(list.map((m) => m.id), ['det', 'pose', 'ocrdet', 'ocrrec', 'platedet', 'platerec']);
+    assert.deepStrictEqual(list.map((m) => m.id), ['det', 'pose', 'ocrdet', 'ocrrec', 'aircraft', 'platedet', 'platerec']);
     assert.ok(list.every((m) => !m.installed && m.remote && m.size > 0));
     assert.strictEqual(await models.read('det'), null);
 

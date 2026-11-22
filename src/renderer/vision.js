@@ -170,7 +170,8 @@ function buildVisionPanel(opts) {
     const det = act.filter((m) => !m.user && m.models[0] === 'det');
     if (det.length) { tasks.push({ type: 'detect', model: 'det', outputs: det.map((m) => ({ module: m.id, classes: m.classes || null, thr: thr(m), top: m.top || 0 })) }); need.add('det'); }
     for (const m of act) {
-      if (m.user) { tasks.push({ type: 'detect', model: m.id, outputs: [{ module: m.id, classes: null, thr: thr(m), top: 0 }] }); need.add(m.id); }
+      const own = !m.user && m.models[0] !== 'det' && VISION.MODELS[m.models[0]].kind === 'detect' ? m.models[0] : null; // kendi algılayıcısı olan modül
+      if (m.user || own) { const mid = own || m.id; tasks.push({ type: 'detect', model: mid, outputs: [{ module: m.id, classes: null, thr: thr(m), top: 0 }] }); need.add(mid); }
       else if (m.id === 'pose') { tasks.push({ type: 'pose', model: 'pose', module: 'pose', thr: thr(m) }); need.add('pose'); }
       else if (m.id === 'ocr') { tasks.push({ type: 'ocr', det: 'ocrdet', rec: 'ocrrec', module: 'ocr', thr: thr(m) }); need.add('ocrdet'); need.add('ocrrec'); }
       else if (m.id === 'plate') { tasks.push({ type: 'plate', det: 'platedet', rec: 'platerec', module: 'plate', thr: thr(m) }); need.add('platedet'); need.add('platerec'); }
@@ -276,7 +277,11 @@ function buildVisionPanel(opts) {
       s.textContent = last && engine.running && VISION.moduleState(cfg, { id: mid, sens: 50 }).on ? String(n) : '';
     }
   }
-  const labelText = (it) => (it.cls >= 0 && it.coco ? (VISION.cocoLabel ? VISION.cocoLabel(it.cls, LANG) : it.label) : it.label);
+  const labelText = (it) => {
+    if (it.coco) return VISION.cocoLabel(it.cls, LANG);
+    const def = VISION.MODELS[it.model];
+    return (LANG === 'tr' && def && def.labelsTr && def.labelsTr[it.cls]) || it.label;
+  };
   function paintResults() {
     paintCounts();
     const box = q('[data-res]');

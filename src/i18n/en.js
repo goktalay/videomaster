@@ -238,7 +238,7 @@
     'vis.d.ocr': 'Finds and reads text in the image',
     'vis.d.plate': 'Finds and reads licence plates',
     'vis.d.vehicle': 'Car, truck, bus, motorcycle, bicycle, train, boat',
-    'vis.d.aircraft': 'Marks airplanes',
+    'vis.d.aircraft': 'Marks airplanes, helicopters and drones',
     'vis.d.animal': 'Bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe',
     'vis.d.object': 'All 80 object types',
     'vis.n.rate': 'Analyses per second (maximum)',

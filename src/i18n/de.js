@@ -237,7 +237,7 @@
     'vis.d.ocr': 'Findet und liest Text im Bild',
     'vis.d.plate': 'Findet und liest Kennzeichen',
     'vis.d.vehicle': 'Auto, Lkw, Bus, Motorrad, Fahrrad, Zug, Boot',
-    'vis.d.aircraft': 'Markiert Flugzeuge',
+    'vis.d.aircraft': 'Markiert Flugzeuge, Hubschrauber und Drohnen',
     'vis.d.animal': 'Vogel, Katze, Hund, Pferd, Schaf, Kuh, Elefant, Bär, Zebra, Giraffe',
     'vis.d.object': 'Alle 80 Objekttypen',
     'vis.n.rate': 'Analysen pro Sekunde (Maximum)',

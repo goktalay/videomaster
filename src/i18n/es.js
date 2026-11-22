@@ -237,7 +237,7 @@
     'vis.d.ocr': 'Encuentra y lee el texto de la imagen',
     'vis.d.plate': 'Encuentra y lee matrículas',
     'vis.d.vehicle': 'Coche, camión, autobús, motocicleta, bicicleta, tren, barco',
-    'vis.d.aircraft': 'Marca los aviones',
+    'vis.d.aircraft': 'Marca aviones, helicópteros y drones',
     'vis.d.animal': 'Pájaro, gato, perro, caballo, oveja, vaca, elefante, oso, cebra, jirafa',
     'vis.d.object': 'Los 80 tipos de objetos',
     'vis.n.rate': 'Análisis por segundo (máximo)',

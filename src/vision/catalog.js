@@ -41,6 +41,13 @@
         { name: 'dict.txt', url: 'https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/dict/ppocrv5_latin_dict.txt', size: 2616, sha256: 'ccbcc45730b3fbbd9050c5bc74db6a99067141ef1035e3d14889a84a6b9b1aff' },
       ],
     },
+    // Uçak, helikopter ve insansız hava aracı. YOLO11 ağırlıkları AGPL-3.0 kapsamındadır; yayın sahibi sürüm sabitlemediği
+    // için sağlama doğrulaması yoktur (loose: boyut yalnızca gösterim içindir).
+    aircraft: {
+      id: 'aircraft', name: 'YOLO11n · uçak, helikopter, İHA', kind: 'detect', decoder: 'yolov8', inputSize: 640, license: 'AGPL-3.0 (Ultralytics YOLO11)', source: 'manako (Hugging Face)',
+      labels: ['aeroplane', 'helicopter', 'drone'], labelsTr: ['uçak', 'helikopter', 'İHA'],
+      files: [{ name: 'model.onnx', url: 'https://huggingface.co/manako/Detect-aircraft-and-drones-detection/resolve/main/weights.onnx', size: 10605669, loose: true }],
+    },
     platedet: {
       id: 'platedet', name: 'YOLOv9-t 384 · plaka bulma', kind: 'platedet', decoder: 'end2end', inputSize: 384, labels: ['plate'], license: 'MIT', source: 'ankandrew/open-image-models',
       files: [{ name: 'model.onnx', url: `${GH}/ankandrew/open-image-models/releases/download/assets/yolo-v9-t-384-license-plates-end2end.onnx`, size: 7771218, sha256: '888397b96d761c89db40bc9c305838e8652660f5e282c2cadebbe8d2951a77a8' }],
@@ -60,7 +67,7 @@
     { id: 'ocr', icon: 'text', color: '#fbbf24', models: ['ocrdet', 'ocrrec'], sens: 40 },
     { id: 'plate', icon: 'hdd', color: '#fb923c', models: ['platedet', 'platerec'], sens: 60 },
     { id: 'vehicle', icon: 'drive', color: '#60a5fa', models: ['det'], classes: [1, 2, 3, 5, 6, 7, 8], sens: 55 },
-    { id: 'aircraft', icon: 'upload', color: '#c084fc', models: ['det'], classes: [4], sens: 60 },
+    { id: 'aircraft', icon: 'upload', color: '#c084fc', models: ['aircraft'], sens: 60 },
     { id: 'animal', icon: 'eye', color: '#a3e635', models: ['det'], classes: [14, 15, 16, 17, 18, 19, 20, 21, 22, 23], sens: 55 },
     { id: 'object', icon: 'layers', color: '#94a3b8', models: ['det'], sens: 50 },
   ];

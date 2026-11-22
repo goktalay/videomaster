@@ -26,7 +26,7 @@ function createModels(deps) {
 
   function installed(m) {
     return m.files.every((f) => {
-      try { const st = fs.statSync(filePath(m, f)); return st.isFile() && st.size > 0 && (!f.size || st.size === f.size); } catch { return false; }
+      try { const st = fs.statSync(filePath(m, f)); return st.isFile() && st.size > 0 && (!f.size || f.loose || st.size === f.size); } catch { return false; }
     });
   }
 
@@ -85,7 +85,7 @@ function createModels(deps) {
     try {
       for (const f of m.files) {
         if (!f.url) throw Object.assign(new Error('no url'), { code: 'no_source' });
-        try { const st = fs.statSync(filePath(m, f)); if (st.size > 0 && (!f.size || st.size === f.size)) { done += st.size; continue; } } catch { /* yok: indir */ }
+        try { const st = fs.statSync(filePath(m, f)); if (st.size > 0 && (!f.size || f.loose || st.size === f.size)) { done += st.size; continue; } } catch { /* yok: indir */ }
         await fetchFile(m, f, ctl.signal, (n) => { done += n; const now = Date.now(); if (now - last > 150) { last = now; tell({ state: 'run' }); } });
       }
       active.delete(id);

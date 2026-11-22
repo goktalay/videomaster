@@ -237,7 +237,7 @@
     'vis.d.ocr': '查找并读取图像中的文字',
     'vis.d.plate': '查找并读取车牌',
     'vis.d.vehicle': '汽车、卡车、公交车、摩托车、自行车、火车、船',
-    'vis.d.aircraft': '标记飞机',
+    'vis.d.aircraft': '标记飞机、直升机和无人机',
     'vis.d.animal': '鸟、猫、狗、马、羊、牛、大象、熊、斑马、长颈鹿',
     'vis.d.object': '全部 80 种目标类型',
     'vis.n.rate': '每秒分析次数（上限）',

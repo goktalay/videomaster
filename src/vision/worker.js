@@ -184,7 +184,9 @@ async function run(bitmap, job) {
       const minScore = Math.min(...task.outputs.map((o) => o.thr));
       const boxes = await detect(bitmap, m, minScore, job);
       const coco = m.def.labels === 'coco';
-      result.items.push(...VDECODE.routeDetections(boxes, task.outputs, coco ? VISION.COCO : (m.def.labels || []), bitmap.width, bitmap.height, coco));
+      const items = VDECODE.routeDetections(boxes, task.outputs, coco ? VISION.COCO : (m.def.labels || []), bitmap.width, bitmap.height, coco);
+      for (const it of items) it.model = task.model;
+      result.items.push(...items);
     } else if (task.type === 'pose') result.poses.push(...(await pose(bitmap, need(task.model), task)).slice(0, job.maxDet));
     else if (task.type === 'ocr') result.texts.push(...await ocr(bitmap, need(task.det), need(task.rec), task));
     else if (task.type === 'plate') result.texts.push(...await plates(bitmap, need(task.det), need(task.rec), task, job));
@@ -199,6 +201,11 @@ async function load(id, def, files) {
   if (old) { models.delete(id); try { await old.session.release(); } catch { /* yok */ } }
   const session = await ort.InferenceSession.create(new Uint8Array(files['model.onnx']), { executionProviders: ['wasm'], graphOptimizationLevel: 'all' });
   const m = { def, session, input: session.inputNames[0], layout: def.decoder || 'auto', chars: null };
+  // Nesne tanıma modelinin giriş boyutu sabitse modelin kendisinden okunur (tanımdaki değer yerine)
+  try {
+    const shape = session.inputMetadata && session.inputMetadata[0] && session.inputMetadata[0].shape;
+    if (def.kind === 'detect' && shape && shape.length === 4 && Number.isInteger(shape[2]) && shape[2] === shape[3] && shape[2] >= 32) m.def = { ...def, inputSize: shape[2] };
+  } catch { /* eski çalışma zamanı: tanımdaki boyut kullanılır */ }
   if (files['dict.txt']) {
     const lines = new TextDecoder('utf-8').decode(files['dict.txt']).split('\n');
     if (lines[lines.length - 1] === '') lines.pop();
