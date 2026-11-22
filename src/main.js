@@ -404,7 +404,7 @@ function openViewer(id) {
     title: `${c.name} — ${APP_NAME}`, icon: ICON, autoHideMenuBar: true, webPreferences,
   });
   win.setMenuBarVisibility(false);
-  win.loadFile(path.join(__dirname, 'renderer', 'viewer.html'), { query: { id } });
+  win.loadURL(`vdm://app/renderer/viewer.html?id=${encodeURIComponent(id)}`);
   viewers.set(id, win);
   win.on('closed', () => {
     viewers.delete(id);
@@ -531,6 +531,19 @@ async function saveThumb(id) {
 function registerThumbProtocol() {
   protocol.handle('vdm', async (req) => {
     const u = new URL(req.url);
+    // vdm://app/<src altındaki yol>: akış penceresi buradan yüklenir. COOP/COEP başlıkları sayfayı "cross-origin isolated"
+    // yapar; yapay görü (WASM) ancak böyle birden çok iş parçacığı kullanabilir.
+    if (u.host === 'app') {
+      const file = path.normalize(path.join(__dirname, decodeURIComponent(u.pathname)));
+      if (!file.startsWith(__dirname + path.sep)) return new Response('forbidden', { status: 403 });
+      const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.wasm': 'application/wasm', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
+      try {
+        return new Response(await fs.promises.readFile(file), { status: 200, headers: {
+          'Content-Type': types[path.extname(file).toLowerCase()] || 'application/octet-stream', 'Cache-Control': 'no-cache',
+          'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp', 'Cross-Origin-Resource-Policy': 'same-origin',
+        } });
+      } catch { return new Response('not found', { status: 404 }); }
+    }
     const id = u.pathname.replace(/^\//, '').replace(/[^a-z0-9]/gi, '');
     if (u.host !== 'thumb' || !id) return new Response('not found', { status: 404 });
     try {

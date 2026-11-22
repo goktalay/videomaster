@@ -218,6 +218,7 @@ test('CPDD075CCT: sahte kamerayla 25 Hz çerçeve akışı, komut darbesi, joyst
     drv.hold('joystick', { yaw: 5, pitch: 0 });
     await wait(100);
     drv.hold('joystick', null);
+    await wait(80); // yoldaki son çerçeve gelsin
     got.length = 0;
     await wait(120);
     assert.ok(got.length && got.every((g) => g.m[37] === 0));
@@ -329,7 +330,7 @@ test('Skydroid C13: sahte UDP kamerayla konum bildirimi, joystick tazeleme ve b�
     assert.ok(y >= 3 && p >= 3, `hız komutları tazelenir (${y}/${p})`);
     drv.hold('joystick', null);
     await wait(200);
-    assert.deepStrictEqual(got.slice(-3).filter((g) => !g.includes('GAA') && !g.includes('rREC') && !g.includes('rDZM')).slice(-3), ['#TPUG2wGSY005F', '#TPUG2wGSP0056', '#TPUG2wPTZ006A']);
+    assert.deepStrictEqual(got.filter((g) => !g.includes('GAA') && !g.includes('rREC') && !g.includes('rDZM')).slice(-3), ['#TPUG2wGSY005F', '#TPUG2wGSP0056', '#TPUG2wPTZ006A']);
     assert.deepStrictEqual(await drv.exec('laserOnce'), { ok: true });
     await wait(200);
     assert.deepStrictEqual(replies, ['SLR 500']);

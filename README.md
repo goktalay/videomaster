@@ -46,6 +46,13 @@ paneli açılır (joystick, takip, yakınlaştırma, kayıt, termal palet, lazer
 Desteklenen modeller: **CPDD075CCT**, **Skydroid C10 / C10 Pro, C12, C13, C20**. Ayrıntı, kaynaklar ve yeni model ekleme:
 [docs/kamera-modelleri.md](docs/kamera-modelleri.md).
 
+## Yapay görü
+
+Akış penceresindeki **Yapay görü** panelinde poz, insan, çoklu insan, yazı okuma (OCR), plaka, araç, hava aracı, hayvan ve nesne
+tanıma modülleri ayrı ayrı ya da birlikte çalıştırılır; her modülün kendi hassasiyet ayarı vardır. Modeller kurulumla gelmez,
+ilk kullanımdan önce indirilir; kendi ONNX modelinizi ekleyebilir, ayarları dosyaya kaydedip başka kameralara uygulayabilirsiniz.
+Ayrıntı: [docs/yapay-goru.md](docs/yapay-goru.md).
+
 ## Protokoller
 
 | Protokol | Adres | Akış verisinde görünen |

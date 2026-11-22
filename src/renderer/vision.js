@@ -110,7 +110,9 @@ class VisionEngine {
       if (this.running) { this.error = e.message; this.running = false; this.onState(); }
       return;
     }
-    if (this.running) this.timer = setTimeout(() => this.tick(), Math.max(0, 1000 / this.rate - (performance.now() - t0)));
+    // Sonraki analiz: istenen hıza göre; işlemci video çözmeye de kalsın diye en az kısa bir ara verilir
+    const took = performance.now() - t0;
+    if (this.running) this.timer = setTimeout(() => this.tick(), Math.max(15, took * 0.1, 1000 / this.rate - took));
   }
 
   destroy() { this.stop(); if (this.worker) this.worker.terminate(); this.worker = null; this.ready = null; this.loaded.clear(); }
@@ -198,6 +200,7 @@ function buildVisionPanel(opts) {
     const n = activeModules().length;
     chip.className = `state-chip s-${engine.error ? 'error' : engine.running ? (last ? 'playing' : 'connecting') : 'idle'}`;
     chip.innerHTML = `${engine.running && !last ? '<span class="spin"></span>' : '<i></i>'}${esc(engine.error ? t('vis.failed') : engine.running ? (last ? t('vis.running', { ms: Math.round(last.ms), n }) : t('vis.loading')) : t('vis.idle', { n }))}`;
+    chip.title = last && engine.running ? `${last.times.map(([k, ms]) => `${k}: ${ms} ms`).join(' · ')} · ${last.threads}T` : '';
     const err = q('[data-err]');
     err.textContent = engine.error ? `${t('vis.failed')}: ${engine.error}` : '';
     err.classList.toggle('hidden', !engine.error);
