@@ -99,7 +99,7 @@
     'sync.errTooLarge': '库超过 5 MB 上限，无法同步。',
     'sync.error': '同步错误：{msg}',
     'update.available': '新版本可用：{version}',
-    'update.hint': '请从你的 videomaster.app 账户下载。',
+    'update.hint': '请从你的 mastertool.download 账户下载。',
     'update.open': '打开我的账户',
     'main.closeAnyway': '仍然关闭',
     'main.copySuffix': '（副本）',

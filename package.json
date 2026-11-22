@@ -10,6 +10,7 @@
     "start": "electron .",
     "test": "node --test \"test/*.test.js\"",
     "icon": "node scripts/make-icon.js",
+    "screenshots": "node scripts/screenshots.js",
     "dist": "electron-builder --win",
     "dist:portable": "electron-builder --win portable"
   },

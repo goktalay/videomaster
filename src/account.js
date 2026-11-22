@@ -1,6 +1,6 @@
 'use strict';
 
-// Mastertool hesabı ve uçtan uca şifreli bağlantı kütüphanesi senkronu (videomaster.app, sözleşme v1).
+// Mastertool hesabı ve uçtan uca şifreli bağlantı kütüphanesi senkronu (mastertool.download, sözleşme v1).
 // SSH Master / FTP Masters / Convert Master'daki account.js'in Video Master uyarlaması: uçlar APP_API altında,
 // şifreleme anahtarı ENC_INFO. Uygulama kodu sunucuda farklı tanımlanırsa yalnız bu iki sabit değişir.
 // Senkronlanan: bağlantı tanımları (adres, kimlik bilgileri ve tüm akış ayarları), klasörler ve genel ayarlar.
@@ -21,7 +21,8 @@ const SCHEMA = require('./schema');
 const APP_API = '/api/vm';       // Mastertool sunucusundaki uygulama öneki (Convert Master: /api/cv)
 const APP_CODE = 'vm';           // hesap sayfalarına geçilen uygulama kodu
 const ENC_INFO = 'vdm-enc-v1';   // HKDF bilgisi: kütüphane anahtarı uygulamaya özgüdür
-const API_BASES = process.env.VDM_API ? [process.env.VDM_API] : ['https://videomaster.app', 'https://mastertool.download'];
+// Video Master'ın kendi sitesi yoktur: hesap servisi ve tanıtım sayfası mastertool.download'dadır (/video-master)
+const API_BASES = process.env.VDM_API ? [process.env.VDM_API] : ['https://mastertool.download'];
 const SYNC_DEBOUNCE_MS = 3000;
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const TOMBSTONE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -87,7 +88,7 @@ class ApiError extends Error {
   }
 }
 
-// Asıl adres videomaster.app; DNS hazır olana dek aynı API mastertool.download'da da var. Ağ hatasında
+// Birden çok adres tanımlanırsa (API_BASES) ağ hatasında
 // (ya da JSON olmayan 404/5xx yanıtında) sıradaki adres denenir ve çalışan adres hatırlanır.
 let baseIndex = 0;
 const apiBase = () => API_BASES[baseIndex];

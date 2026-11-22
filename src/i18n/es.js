@@ -99,7 +99,7 @@
     'sync.errTooLarge': 'La biblioteca supera el límite de 5 MB y no se pudo sincronizar.',
     'sync.error': 'Error de sincronización: {msg}',
     'update.available': 'Nueva versión disponible: {version}',
-    'update.hint': 'Descárgala desde tu cuenta de videomaster.app.',
+    'update.hint': 'Descárgala desde tu cuenta de mastertool.download.',
     'update.open': 'Abrir mi cuenta',
     'main.closeAnyway': 'Cerrar de todos modos',
     'main.copySuffix': ' (copia)',

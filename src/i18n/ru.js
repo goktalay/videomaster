@@ -99,7 +99,7 @@
     'sync.errTooLarge': 'Библиотека превышает предел 5 МБ и не может быть синхронизирована.',
     'sync.error': 'Ошибка синхронизации: {msg}',
     'update.available': 'Доступна новая версия: {version}',
-    'update.hint': 'Скачайте её в своей учётной записи videomaster.app.',
+    'update.hint': 'Скачайте её в своей учётной записи mastertool.download.',
     'update.open': 'Открыть учётную запись',
     'main.closeAnyway': 'Всё равно закрыть',
     'main.copySuffix': ' (копия)',

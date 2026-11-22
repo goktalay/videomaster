@@ -2,11 +2,11 @@
 
 Windows için ağ video akışı görüntüleyici, çözümleyici ve kaydedici. RTSP, RTP, UDP (MPEG-TS), SRT, RTMP, HTTP/HLS ve TCP akışlarına bağlanır; videoyu oynatır, akan baytları HEX / ASCII olarak gösterir, paketleri çözümler, veri hızını grafikte çizer ve akışı dosyaya kaydeder. Mastertool ailesinin ([SSH Master](https://github.com/goktalay/sshmasters), [FTP Masters](https://github.com/goktalay/ftpmasters), SQL Master, Notepad Master, [Convert Master](https://github.com/goktalay/convertmaster)) ortak arayüz yapısı ve hesabıyla.
 
-![Ana ekran: kart üstünde oynatma](docs/screenshots/01-ana-ekran.png)
+![Ana ekran: kart üstünde oynatma](docs/screenshots/01-ana-ekran-gece.png)
 
-![Akış penceresi: video, HEX, veri hızı grafiği, akış ayarları, kayıt](docs/screenshots/03-akis-penceresi-kayit.png)
+![Akış penceresi: video, HEX, veri hızı grafiği, akış ayarları, kayıt](docs/screenshots/04-akis-penceresi-gece.png)
 
-Diğer görüntüler: [yeni bağlantı](docs/screenshots/02-yeni-baglanti.png) · [paket listesi](docs/screenshots/04-paketler.png) · [RTSP sinyalleşmesi](docs/screenshots/05-rtsp-sinyallesme.png)
+Diğer görüntüler: [yeni bağlantı](docs/screenshots/02-yeni-baglanti-gunduz.png) · [ağ ayarları](docs/screenshots/03-ag-ayarlari-gece.png) · [paket listesi](docs/screenshots/05-paketler-gece.png) · [RTSP sinyalleşmesi](docs/screenshots/06-rtsp-sinyallesme-gunduz.png)
 
 ## İndirme
 
@@ -102,7 +102,7 @@ Yeni bir akış ayarı eklemek için `src/schema.js` içindeki `FIELDS` listesin
 
 ### Mastertool sunucusu
 
-Hesap uçları `src/account.js` başındaki sabitlerdedir: `APP_API = '/api/vm'`, `APP_CODE = 'vm'`, şifreleme bilgisi `ENC_INFO = 'vdm-enc-v1'`, adresler `videomaster.app` → `mastertool.download`. Sunucuda Video Master farklı bir kodla tanımlanırsa yalnız bu sabitler değişir.
+Hesap uçları `src/account.js` başındaki sabitlerdedir: `APP_API = '/api/vm'`, `APP_CODE = 'vm'`, şifreleme bilgisi `ENC_INFO = 'vdm-enc-v1'`, adres `mastertool.download` (Video Master'ın kendi sitesi yok; tanıtım sayfası `mastertool.download/video-master`). Sunucu tarafı `goktalay/hepgo` › `central/sshmaster_server` içinde `TOOLS['vm']` kaydıdır.
 
 ## Exe derleme
 
@@ -111,6 +111,12 @@ npm run dist
 ```
 
 İkonu değiştirmek için `build/icon.svg` dosyasını düzenleyip `npm run icon` çalıştırın.
+
+Tanıtım ekran görüntüleri (`docs/screenshots`, Türkçe + `en/`, gece ve gündüz; sınama akışlarıyla, Linux'ta xvfb altında):
+
+```bash
+VDM_FFMPEG=/usr/bin/ffmpeg xvfb-run -a -s "-screen 0 1920x1200x24" npm run screenshots
+```
 
 ## Sürüm yayınlama
 
@@ -124,7 +130,7 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-Sürüm numarası etiketten alınır. Etiketle yayınlanan sürüm ayrıca videomaster.app'e yüklenir (`scripts/upload-videomaster.sh`; depo secret'ı `VIDEOM_RELEASE_KEY`, tanımlı değilse adım atlanır).
+Sürüm numarası etiketten alınır. Etiketle yayınlanan sürüm ayrıca mastertool.download'a yüklenir (`scripts/upload-videomaster.sh`; depo secret'ı `VIDEOM_RELEASE_KEY`, tanımlı değilse adım atlanır).
 
 ## Lisanslar ve üçüncü taraf bileşenler
 

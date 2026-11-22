@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exe'leri videomaster.app'a yükler (Mastertool sözleşmesi v1, §4).
+# Exe'leri mastertool.download'a yükler (Mastertool sözleşmesi v1, §4).
 # Kullanım: upload-videomaster.sh <sürüm> <setup.exe> [notlar] [portable.exe]
 # Anahtar VIDEOM_RELEASE_KEY ortam değişkeninden okunur; tanımlı değilse uyarı verip çıkar.
 #
@@ -15,17 +15,12 @@ SETUP="$2"
 NOTES="${3:-}"
 PORTABLE="${4:-}"
 [ -n "$NOTES" ] || NOTES="Video Master $VERSION"
-BASE="${VIDEOM_API:-https://videomaster.app}"
-# videomaster.app DNS'i hazır değilse aynı API mastertool.download'da da var
-if [ -z "${VIDEOM_API:-}" ] && [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$BASE/api/vm/releases/latest" || true)" = "000" ]; then
-  echo "::notice::$BASE erişilemedi; https://mastertool.download kullanılıyor."
-  BASE="https://mastertool.download"
-fi
+BASE="${VIDEOM_API:-https://mastertool.download}"
 API="$BASE/api/vm/releases"
 PART_BYTES="${VIDEOM_PART_BYTES:-90000000}"     # test için küçültülebilir
 
 if [ -z "${VIDEOM_RELEASE_KEY:-}" ]; then
-  echo "::warning::VIDEOM_RELEASE_KEY tanımlı değil; videomaster.app'a yükleme atlandı."
+  echo "::warning::VIDEOM_RELEASE_KEY tanımlı değil; mastertool.download'a yükleme atlandı."
   exit 0
 fi
 
@@ -65,7 +60,7 @@ echo "Kurulum: $SETUP ($(stat -c %s "$SETUP") bayt), sürüm $VERSION"
 HTTP=$(post_parts "$API/$VERSION/setup" "$SETUP" "$(basename "$SETUP")" -F "notes=$NOTES")
 case "$HTTP" in
   200|201) echo "$BASE: kurulum $VERSION yüklendi."; verify "$SETUP" ;;
-  409) echo "::notice::videomaster.app'da $VERSION kurulumu zaten var (409); atlandı." ;;
+  409) echo "::notice::mastertool.download'da $VERSION kurulumu zaten var (409); atlandı." ;;
   *) echo "::error::Kurulum yüklemesi başarısız (HTTP $HTTP)."; exit 1 ;;
 esac
 
@@ -75,7 +70,7 @@ if [ -n "$PORTABLE" ] && [ -f "$PORTABLE" ]; then
   HTTP=$(post_parts "$API/$VERSION/portable" "$PORTABLE" "$(basename "$PORTABLE")") || HTTP=000
   case "$HTTP" in
     200|201) echo "$BASE: portable $VERSION yüklendi."; verify "$PORTABLE" || true ;;
-    409) echo "::notice::videomaster.app'da $VERSION portable zaten var (409); atlandı." ;;
+    409) echo "::notice::mastertool.download'da $VERSION portable zaten var (409); atlandı." ;;
     *) echo "::warning::Portable yüklemesi başarısız (HTTP $HTTP); kurulum yüklendiği için yayın sürüyor." ;;
   esac
 fi

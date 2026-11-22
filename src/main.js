@@ -156,7 +156,7 @@ function broadcastStore() {
 }
 
 // ---------------------------------------------------------------------------
-// Mastertool hesabı (videomaster.app) ve uçtan uca şifreli senkron
+// Mastertool hesabı (mastertool.download) ve uçtan uca şifreli senkron
 // ---------------------------------------------------------------------------
 let account = null;
 let loginWindow = null;

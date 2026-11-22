@@ -1,7 +1,7 @@
 # Windows exe'lerini derler.
 # - "v1.2.3" gibi bir etiket gönderilince: sürümü etiketten alır, derler ve GitHub Release'e ekler.
 # - Actions sekmesinden elle çalıştırılınca (workflow_dispatch): yalnızca derler, exe'leri "artifact" olarak saklar.
-#   "release" işaretlenirse package.json'daki sürümle v<sürüm> etiketini ve Release'i oluşturur, videomaster.app'e yükler
+#   "release" işaretlenirse package.json'daki sürümle v<sürüm> etiketini ve Release'i oluşturur, mastertool.download'e yükler
 #   (etiket gönderilemeyen ortamlar için; etiketle yayınla aynı sonuç).
 name: Release
 
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: "Yayınla (v<package.json sürümü> etiketi + Release + videomaster.app)"
+        description: "Yayınla (v<package.json sürümü> etiketi + Release + mastertool.download)"
         type: boolean
         default: false
 
@@ -68,10 +68,10 @@ jobs:
           files: dist/*.exe
           generate_release_notes: true
 
-      # Exe kullanıcılara ayrıca videomaster.app'teki kişiye özel bağlantıyla (Mastertool hesabı) dağıtılır.
+      # Exe kullanıcılara ayrıca mastertool.download'teki kişiye özel bağlantıyla (Mastertool hesabı) dağıtılır.
       # Anahtar depo secret'ı VIDEOM_RELEASE_KEY'dedir; tanımlı değilse adım atlanır.
       # Ayrıntılar scripts/upload-videomaster.sh.
-      - name: videomaster.app'e yükle
+      - name: mastertool.download'e yükle
         if: env.PUBLISH == 'true'
         shell: bash
         env:

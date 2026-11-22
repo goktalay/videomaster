@@ -1,0 +1,50 @@
+[
+  {
+    "file": "01-ana-ekran-gece.png",
+    "theme": "dark",
+    "title": "Bağlantılar",
+    "caption": "Kartın üstündeki oynat düğmesi videoyu kartta oynatır; CANLI rozeti ve anlık veri hızı"
+  },
+  {
+    "file": "01-ana-ekran-gunduz.png",
+    "theme": "light",
+    "title": "Bağlantılar",
+    "caption": "Kartın üstündeki oynat düğmesi videoyu kartta oynatır; CANLI rozeti ve anlık veri hızı"
+  },
+  {
+    "file": "02-yeni-baglanti-gunduz.png",
+    "theme": "light",
+    "title": "Yeni bağlantı",
+    "caption": "Protokolü seçin; yapıştırılan adres alanlara kendiliğinden dağılır"
+  },
+  {
+    "file": "03-ag-ayarlari-gece.png",
+    "theme": "dark",
+    "title": "Ağ ayarları",
+    "caption": "RTP taşıma, zaman aşımı, tamponlar ve yeniden bağlanma"
+  },
+  {
+    "file": "04-akis-penceresi-gece.png",
+    "theme": "dark",
+    "title": "Akış penceresi",
+    "caption": "Video, HEX görünümü, veri hızı grafiği, akış bilgisi, akış ayarları ve kayıt"
+  },
+  {
+    "file": "04-akis-penceresi-gunduz.png",
+    "theme": "light",
+    "title": "Akış penceresi",
+    "caption": "Video, HEX görünümü, veri hızı grafiği, akış bilgisi, akış ayarları ve kayıt"
+  },
+  {
+    "file": "05-paketler-gece.png",
+    "theme": "dark",
+    "title": "Paket listesi",
+    "caption": "RTP sıra numarası, zaman damgası ve NAL türü; seçilen paketin baytları"
+  },
+  {
+    "file": "06-rtsp-sinyallesme-gunduz.png",
+    "theme": "light",
+    "title": "RTSP sinyalleşmesi",
+    "caption": "Sunucuyla alışverişin tamamı: istekler ve yanıtlar"
+  }
+]

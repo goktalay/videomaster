@@ -99,7 +99,7 @@
     'sync.errTooLarge': 'Kütüphane 5 MB sınırını aşıyor; senkronize edilemedi.',
     'sync.error': 'Senkron hatası: {msg}',
     'update.available': 'Yeni sürüm hazır: {version}',
-    'update.hint': 'videomaster.app hesabınızdan indirebilirsiniz.',
+    'update.hint': 'mastertool.download hesabınızdan indirebilirsiniz.',
     'update.open': 'Hesabımı aç',
     'main.closeAnyway': 'Yine de kapat',
     'main.copySuffix': ' (kopya)',

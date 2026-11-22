@@ -99,7 +99,7 @@
     'sync.errTooLarge': 'تتجاوز المكتبة حد 5 MB ولم تتم مزامنتها.',
     'sync.error': 'خطأ في المزامنة: {msg}',
     'update.available': 'يتوفر إصدار جديد: {version}',
-    'update.hint': 'نزّله من حسابك على videomaster.app.',
+    'update.hint': 'نزّله من حسابك على mastertool.download.',
     'update.open': 'فتح حسابي',
     'main.closeAnyway': 'الإغلاق على أي حال',
     'main.copySuffix': ' (نسخة)',
