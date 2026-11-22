@@ -1,0 +1,46 @@
+body {
+  background:
+    radial-gradient(600px 300px at 90% -10%, rgba(99, 102, 241, .14), transparent 60%),
+    radial-gradient(500px 300px at -10% 110%, rgba(34, 211, 238, .10), transparent 60%),
+    var(--bg);
+  user-select: none;
+}
+
+.login { height: 100%; display: flex; flex-direction: column; padding: 34px 36px 16px; overflow: auto; }
+
+.brand { text-align: center; margin-bottom: 22px; }
+.brand img { width: 72px; height: 72px; border-radius: 18px; box-shadow: 0 10px 28px rgba(34, 211, 238, .22); }
+.brand h1 { margin: 14px 0 4px; font-size: 22px; letter-spacing: .2px; }
+.brand p { margin: 0; color: var(--text-2); }
+
+form { display: grid; gap: 14px; }
+.input { width: 100%; }
+.pw-wrap { position: relative; }
+.pw-wrap .input { padding-inline-end: 40px; }
+.pw-wrap .icon-btn { position: absolute; inset-inline-end: 4px; top: 4px; }
+[dir="rtl"] #email { direction: ltr; text-align: right; }
+
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.check { align-items: center; }
+.check input { margin: 0; }
+a { color: var(--accent); text-decoration: none; font-weight: 500; }
+a:hover { text-decoration: underline; }
+
+.submit { height: 40px; justify-content: center; font-size: 14px; margin-top: 2px; }
+.submit .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error, .notice {
+  padding: 10px 12px; border-radius: 9px; font-size: 12.5px; line-height: 1.45;
+  border: 1px solid rgba(248, 113, 113, .45); background: rgba(248, 113, 113, .08); color: var(--text);
+}
+.notice { border-color: rgba(251, 191, 36, .45); background: rgba(251, 191, 36, .08); }
+
+.register { text-align: center; color: var(--text-2); font-size: 13px; }
+
+.foot { margin-top: auto; padding-top: 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.lang { width: auto; height: 30px; font-size: 12px; padding: 0 8px; }
+.ver { color: var(--text-3); font-size: 11.5px; }
+.hidden { display: none !important; }
+.login-mt { position: fixed; top: 12px; inset-inline-end: 12px; }
+.login { padding-top: 58px; }

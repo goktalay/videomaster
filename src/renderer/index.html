@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: vdm:">
+  <title>Video Master</title>
+  <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="mastertool.css">
+  <link rel="stylesheet" href="form.css">
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="stream.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <img src="../../build/icon.png" alt="">
+        <div>
+          <div class="brand-name">Video Master</div>
+          <div class="brand-sub" id="stats"></div>
+        </div>
+      </div>
+      <div class="search">
+        <span class="search-ico"></span>
+        <input id="search" spellcheck="false">
+      </div>
+      <div class="actions">
+        <button class="btn ghost" id="btnTheme"></button>
+        <button class="btn ghost" id="btnSettings"></button>
+        <button class="btn" id="btnNewFolder"></button>
+        <button class="btn primary" id="btnNew"></button>
+        <button class="account-chip" id="btnAccount"><span class="ac-avatar"></span><span class="ac-sync"></span></button>
+      </div>
+    </header>
+
+    <div class="update-bar hidden" id="updateBar"></div>
+
+    <nav class="crumbs" id="crumbs"></nav>
+
+    <main class="content" id="content">
+      <div class="grid" id="grid"></div>
+    </main>
+  </div>
+
+  <script src="../i18n/tr.js"></script>
+  <script src="../i18n/en.js"></script>
+  <script src="../i18n/fr.js"></script>
+  <script src="../i18n/de.js"></script>
+  <script src="../i18n/es.js"></script>
+  <script src="../i18n/ar.js"></script>
+  <script src="../i18n/zh.js"></script>
+  <script src="../i18n/ru.js"></script>
+  <script src="../i18n.js"></script>
+  <script src="../schema.js"></script>
+  <script src="ui.js"></script>
+  <script src="settings.js"></script>
+  <script src="mastertool.js"></script>
+  <script src="player.js"></script>
+  <script src="connform.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

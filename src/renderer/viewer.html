@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: vdm:">
+  <title>Video Master</title>
+  <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="mastertool.css">
+  <link rel="stylesheet" href="form.css">
+  <link rel="stylesheet" href="stream.css">
+  <link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+  <div class="vw">
+    <header class="vw-top">
+      <div class="vw-title"><span class="vw-ico" id="protoIcon"></span>
+        <div><div class="vw-name" id="name"></div><div class="vw-url" id="url"></div></div></div>
+      <span class="state-chip" id="state"></span>
+      <span style="flex:1"></span>
+      <button class="btn primary" id="btnPlay"></button>
+      <button class="btn rec" id="btnRec"></button>
+      <button class="btn ghost" id="btnShot"></button>
+      <div class="vol"><button class="icon-btn" id="btnMute"></button><input type="range" id="volume" min="0" max="200" step="1"></div>
+      <span class="sep"></span>
+      <button class="icon-btn" id="btnFit"></button>
+      <button class="icon-btn" id="btnFull"></button>
+      <button class="icon-btn" id="btnBottom"></button>
+      <button class="icon-btn" id="btnPanel"></button>
+      <button class="icon-btn" id="btnTheme"></button>
+    </header>
+
+    <div class="vw-main">
+      <div class="vw-left">
+        <section class="vw-video" id="video">
+          <canvas id="canvas"></canvas>
+          <div class="vw-overlay" id="overlay"></div>
+          <div class="vw-osd" id="osd"></div>
+        </section>
+        <div class="split-h" id="splitBottom"></div>
+        <section class="vw-bottom" id="bottom">
+          <div class="vw-hex" id="hex"></div>
+          <div class="split-v" id="splitInfo"></div>
+          <aside class="vw-side" id="side">
+            <div class="chart-head"><span class="ch-title" id="chartTitle"></span><b id="chartNow"></b>
+              <span style="flex:1"></span>
+              <div class="seg sm" id="chartRange"></div><div class="seg sm" id="chartUnit"></div></div>
+            <div id="chart"></div>
+            <div class="vw-info" id="info"></div>
+          </aside>
+        </section>
+      </div>
+      <div class="split-v" id="splitPanel"></div>
+      <aside class="vw-panel" id="panel">
+        <div class="panel-head"><span id="panelTitle"></span><span style="flex:1"></span><button class="icon-btn" id="panelClose"></button></div>
+        <div class="panel-body" id="panelBody"></div>
+        <div class="panel-foot"><span class="panel-note" id="panelNote"></span><span style="flex:1"></span>
+          <button class="btn sm" id="panelRevert"></button><button class="btn sm primary" id="panelApply"></button></div>
+      </aside>
+    </div>
+  </div>
+
+  <script src="../i18n/tr.js"></script>
+  <script src="../i18n/en.js"></script>
+  <script src="../i18n/fr.js"></script>
+  <script src="../i18n/de.js"></script>
+  <script src="../i18n/es.js"></script>
+  <script src="../i18n/ar.js"></script>
+  <script src="../i18n/zh.js"></script>
+  <script src="../i18n/ru.js"></script>
+  <script src="../i18n.js"></script>
+  <script src="../schema.js"></script>
+  <script src="ui.js"></script>
+  <script src="settings.js"></script>
+  <script src="player.js"></script>
+  <script src="chart.js"></script>
+  <script src="hexview.js"></script>
+  <script src="connform.js"></script>
+  <script src="viewer.js"></script>
+</body>
+</html>

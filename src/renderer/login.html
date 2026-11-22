@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+  <title>Video Master</title>
+  <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="mastertool.css">
+  <link rel="stylesheet" href="login.css">
+</head>
+<body>
+  <main class="login">
+    <div class="brand">
+      <img src="../../build/icon.png" alt="">
+      <h1>Video Master</h1>
+      <p id="subtitle"></p>
+    </div>
+
+    <form id="form" autocomplete="on" novalidate>
+      <div class="notice hidden" id="notice"></div>
+      <div class="field"><label for="email" id="lEmail"></label>
+        <input class="input" id="email" type="email" autocomplete="username" spellcheck="false" required></div>
+      <div class="field"><label for="password" id="lPassword"></label>
+        <div class="pw-wrap"><input class="input" id="password" type="password" autocomplete="current-password" required>
+          <button class="icon-btn" id="eye" type="button"></button></div></div>
+      <div class="row-between">
+        <label class="check"><input type="checkbox" id="remember" checked><span id="lRemember"></span></label>
+        <a href="#" id="forgot"></a>
+      </div>
+      <div class="error hidden" id="error"></div>
+      <button class="btn primary submit" id="submit" type="submit"></button>
+      <div class="register"><span id="noAccount"></span> <a href="#" id="register"></a></div>
+    </form>
+
+    <footer class="foot">
+      <select class="input lang" id="lang"></select>
+      <span class="ver" id="ver"></span>
+    </footer>
+  </main>
+
+  <script src="../i18n/tr.js"></script>
+  <script src="../i18n/en.js"></script>
+  <script src="../i18n/fr.js"></script>
+  <script src="../i18n/de.js"></script>
+  <script src="../i18n/es.js"></script>
+  <script src="../i18n/ar.js"></script>
+  <script src="../i18n/zh.js"></script>
+  <script src="../i18n/ru.js"></script>
+  <script src="../i18n.js"></script>
+  <script src="ui.js"></script>
+  <script src="mastertool.js"></script>
+  <script src="login.js"></script>
+</body>
+</html>

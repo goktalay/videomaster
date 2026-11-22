@@ -1,0 +1,84 @@
+# Windows exe'lerini derler.
+# - "v1.2.3" gibi bir etiket gönderilince: sürümü etiketten alır, derler ve GitHub Release'e ekler.
+# - Actions sekmesinden elle çalıştırılınca (workflow_dispatch): yalnızca derler, exe'leri "artifact" olarak saklar.
+#   "release" işaretlenirse package.json'daki sürümle v<sürüm> etiketini ve Release'i oluşturur, videomaster.app'e yükler
+#   (etiket gönderilemeyen ortamlar için; etiketle yayınla aynı sonuç).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Yayınla (v<package.json sürümü> etiketi + Release + videomaster.app)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    env:
+      # Etiketle ya da "release" işaretli elle çalıştırmada yayınlanır
+      PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.release == true }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Sürümü etiketten al
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+
+      - run: npm ci
+
+      - name: Yayın etiketi
+        id: tag
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "name=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"; else echo "name=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Testler
+        run: npm test
+
+      - name: Exe'leri derle
+        run: npx electron-builder --win --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Video-Master-windows
+          path: dist/*.exe
+          retention-days: 14
+
+      - name: Release'e ekle
+        if: env.PUBLISH == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          target_commitish: ${{ github.sha }}
+          files: dist/*.exe
+          generate_release_notes: true
+
+      # Exe kullanıcılara ayrıca videomaster.app'teki kişiye özel bağlantıyla (Mastertool hesabı) dağıtılır.
+      # Anahtar depo secret'ı VIDEOM_RELEASE_KEY'dedir; tanımlı değilse adım atlanır.
+      # Ayrıntılar scripts/upload-videomaster.sh.
+      - name: videomaster.app'e yükle
+        if: env.PUBLISH == 'true'
+        shell: bash
+        env:
+          VIDEOM_RELEASE_KEY: ${{ secrets.VIDEOM_RELEASE_KEY }}
+        run: |
+          T="${{ steps.tag.outputs.name }}"
+          V="${T#v}"
+          NOTES="$(git for-each-ref --format='%(contents)' "refs/tags/$T" 2>/dev/null)"
+          [ -n "$NOTES" ] || NOTES="Video Master $V — RTSP / RTP / UDP / SRT / RTMP / HLS akış görüntüleyici, HEX ve paket çözümleme, kayıt, 8 dil."
+          bash scripts/upload-videomaster.sh "$V" "dist/Video-Master-Setup-$V.exe" "$NOTES" "dist/Video-Master-Portable-$V.exe"
