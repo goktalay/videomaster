@@ -15,24 +15,27 @@ const isMulticast = (h) => {
   return m ? Number(m[1]) >= 224 && Number(m[1]) <= 239 : /^ff[0-9a-f]{2}:/i.test(String(h || ''));
 };
 
-// Boş bir UDP portu; pair: RTP için çift numaralı port ve bir üstü (RTCP) birlikte boş olmalı
+// Boş bir UDP portu; pair: RTP için çift numaralı port ve bir üstü (RTCP) birlikte boş olmalı.
+// ffmpeg girişte "tüm adresler"e bağlandığı için yoklama da öyle yapılır: Windows'ta 127.0.0.1'e bağlanmak,
+// portu 0.0.0.0 üzerinde tutan başka bir süreç varken de başarılı olur ve port yanlışlıkla boş görünür.
 function freeUdpPort({ pair = false } = {}) {
-  return new Promise((resolve, reject) => {
-    let tries = 0;
-    const attempt = () => {
-      const a = dgram.createSocket('udp4');
-      a.once('error', (e) => { a.close(); if (++tries > 40) reject(e); else attempt(); });
-      a.bind(0, '127.0.0.1', () => {
-        const port = a.address().port;
-        if (!pair) return a.close(() => resolve(port));
-        if (port % 2) return a.close(() => (++tries > 40 ? reject(new Error('no_port')) : attempt()));
-        const b = dgram.createSocket('udp4');
-        b.once('error', () => { b.close(); a.close(() => (++tries > 40 ? reject(new Error('no_port')) : attempt())); });
-        b.bind(port + 1, '127.0.0.1', () => b.close(() => a.close(() => resolve(port))));
-      });
-    };
-    attempt();
+  const probe = (port) => new Promise((resolve) => {
+    const sock = dgram.createSocket('udp4');
+    sock.once('error', () => { try { sock.close(); } catch { /* kapalı */ } resolve(null); });
+    sock.bind({ port, exclusive: true }, () => { const got = sock.address().port; sock.close(() => resolve(got)); });
   });
+  return (async () => {
+    for (let i = 0; i < 60; i++) {
+      const port = await probe(0);
+      if (!port) continue;
+      if (!pair) return port;
+      const even = port % 2 ? port + 1 : port;
+      if (even > 65534) continue;
+      if (even !== port && !(await probe(even))) continue;
+      if (await probe(even + 1)) return even;
+    }
+    throw Object.assign(new Error('boş UDP portu bulunamadı'), { code: 'EADDRINUSE' });
+  })();
 }
 
 function freeTcpPort() {
