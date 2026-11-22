@@ -1,0 +1,1009 @@
+  AI Recognition and Tracking Kit
+
+— Powerful functionality, wide compatibility, stable performance, and easy integration
+
+User's Manual
+
+V1.1
+
+2026.07
+
+Precautions
+
+1.  Never power on the gimbal when it is inverted. This operation will cause motor overload and permanent damage to the gimbal.
+
+2.  Under all circumstances (powered on or powered off), do not aim the infrared detection window of this product directly at high-intensity radiation sources including the sun, carbon dioxide lasers and welding machines. Otherwise, the camera will be burned, resulting in irreversible damage.
+
+3.  Do not place the camera in locations with direct sunlight and poor ventilation, or near heat sources such as radiators and heaters.
+
+4.  Avoid frequent startup and shutdown of the device. Wait at least 30 seconds after power-off before restarting; otherwise, the service life of the camera core will be shortened.
+
+5.  Before installing the gimbal, ensure all interfaces and surfaces are dry and free of moisture.
+
+6.  Confirm the gimbal is firmly mounted on the UAV before use.
+
+7.  The single continuous laser ranging duration is recommended not to exceed 15 minutes.
+
+8.  Do not hot-swap the Micro SD card while the device is powered on during operation.
+
+9.  Never touch the coating of the camera lens with bare hands or scratch it with hard objects, which will blur imaging and degrade image quality.
+
+10. When cleaning the camera lens, only wipe the lens surface with a soft, dry cleaning cloth. Alkaline cleaning agents are strictly prohibited.
+
+11. Handle the product gently during storage. Do not drop it; otherwise, the equipment may malfunction.
+
+12. It is strictly forbidden to transport the gimbal mounted directly on the drone. The gimbal must be properly packed in a dedicated transport case for safe transit.
+
+Packing List
+
+The standard package includes one set of CPDD075 Target Recognition and Tracking Module, one certificate of conformity, one packaging case and one set of basic cables.
+
+The product shall be placed inside the packaging case during transportation or storage.
+
+Table 1 Item List
+
++---------+--------------------------------------------------+----------+----------------------------------+
+|   No.   |   Name                                           |   Qty.   |   Remarks                        |
++---------+--------------------------------------------------+----------+----------------------------------+
+|   1     |   CPDD075 Target Recognition and Tracking Module |   1Set   |   Equipped with AI circuit board |
++---------+--------------------------------------------------+----------+----------------------------------+
+|   2     |   Certificate of Conformity                      |   1pc    |                                  |
++---------+--------------------------------------------------+----------+----------------------------------+
+|   3     |   Special Shockproof Packaging Case              |   1pc    |                                  |
++---------+--------------------------------------------------+----------+----------------------------------+
+|   4     |   POWER+Analog Video Cable                       |   1pc    |   （connector）8PIN+3PIN         |
++---------+--------------------------------------------------+----------+----------------------------------+
+|   5     |   LAN                                            |   1pc    |   （connector）12PIN             |
++---------+--------------------------------------------------+----------+----------------------------------+
+|   6     |   Desiccant                                      |   1pc    |                                  |
++---------+--------------------------------------------------+----------+----------------------------------+
+
+Catalogue
+
+1 Product Overview 5
+
+1.1 Product Highlights 5
+
+1.2 Application Scenarios 6
+
+1.3 Working Principle 6
+
+1.4 Technical Parameters 11
+
+1.5 Component Dimensions and Interface Specifications 12
+
+1.6 Electrical Interface Specifications 13
+
+1.7 Supporting Cables 16
+
+2 Installation Method 17
+
+2.1 gimbal Connection to UAV 17
+
+3 gimbal Control 18
+
+3.1 Network Control 18
+
+3.2 Serial Port Control 18
+
+3.3 SBUS/CRSF Control 18
+
+3.4 Network Video Output 18
+
+4 Equipment Debugging 19
+
+4.1 Testing the gimbal using display control software 19
+
+4.2 Body Video Recording Reading 31
+
+4.3 Remote Control SBUS/CRSF Channel Settings 32
+
+4.4 Firmware Upgrade 35
+
+5 After-sales Service and Warranty 36
+
+6 Fault Diagnosis 40
+
+1 Product Overview
+
+The CPDD075 series is a suite of visual modules and stabilization gimbals centered on AI-based tracking, offering various configurations including single-light, dual-light, and triple-light systems. Designed specifically for drone and anti-drone applications, these products deliver high-precision target recognition and tracking solutions, with all units built around the end-to-end workflow of "target perception – locking – tracking – guidance".
+
+This product series is compatible with multiple mainstream flight control platforms in China, enabling seamless integration. It can also be connected to the RemoteControl display and control software platform for rapid deployment of drone systems.
+
+1.1 Product Highlights
+
+High-definition fixed-focus visible light
+
+It provides high-quality image input, supports ultra-low-latency analog output, and synchronizes target motion status in real time to prevent tracking lag or target escape caused by low frame rates.
+
+Infrared
+
+The system acquires infrared thermal radiation imaging of the object itself, where higher temperatures correspond to greater radiation intensity. It is unaffected by lighting conditions, smoke, or camouflage interference, requires no external ambient light source, and can stably capture thermal signals from personnel, vehicles, and drones even in complete darkness.
+
+AI Recognition
+
+Developed using cutting-edge AI recognition technology, this identification model achieves exceptionally high accuracy and recognition rates for typical targets (people, vehicles, balloons, drones), while automatically adjusting the tracking aperture size to maintain precise focus on the target.
+
+1.2 Application Scenarios
+
+FPV UAV Visual Module
+
+It supports drones in first-person flight operations, enabling autonomous detection and identification of targets such as individuals and vehicles within the field of view, with capabilities for target locking and continuous tracking, providing precise visual situational awareness and flight control support for drone inspection and reconnaissance missions.
+
+Anti-drone collaborative detection
+
+As a low-altitude maneuver detection unit, it works in conjunction with an anti-drone system to rapidly approach suspicious aircraft; its visual module precisely identifies and tracks unauthorized drones, providing high-definition close-range footage for evidence collection, while coordinating with jamming equipment to drive away or intercept the targets.
+
+1.3 Working Principle
+
+-   Step 1: Target Perception
+
+The camera module adapts to environmental changes and works collaboratively to achieve comprehensive data acquisition with no blind spots.
+
+1. During daytime or in high-visibility conditions:
+
+The short-focus visible-light camera first performs a "wide-area scan" to rapidly capture targets such as people, vehicles, and drones across extensive scenes. Upon detecting a target, it switches to the long-focus visible-light camera to focus on detailed features (e.g., drone identification marks or personnel movements) and acquire high-definition image data.
+
+2. Night/low-visibility scenarios (for infrared-enabled models):
+
+The infrared camera (operating at 8–14 μm long wavelengths) activates without requiring ambient light, capturing thermal radiation from targets—including human body temperature and drone motor heat sources—to generate thermal imaging data. It maintains clear target contours even in complete darkness or fog/tight conditions, effectively preventing the "failure" of visible-light cameras.
+
+-   Step 2: Data preprocessing – Optimize data quality to lay the foundation for AI analysis
+
+The image processing board performs "cleaning and optimization" on the raw data, removing noise and standardizing formats to ensure subsequent AI algorithms can accurately identify them.
+
+1. Single-camera data optimization:
+
+Visible light data: performs white balance correction (to restore true colors) and noise reduction (to eliminate image noise caused by drone shake).
+
+Infrared data: Perform non-uniformity correction (eliminate dark current interference in the infrared detector and prevent uneven image brightness).
+
+2. Multi-camera data fusion (Dual/Triple camera models):
+
+Using a pixel-level fusion algorithm, infrared thermal imaging (showcasing the target's prominent outline) is overlaid with visible-light imagery (capturing environmental details) to generate a composite image combining thermal features and scene background (e.g., "identifying vehicles in infrared while showing their location on the road in visible light"). Additionally, short-focus "wide-area coordinates" are calibrated against long-focus "detail coordinates" to ensure consistent target positioning.
+
+3. Format Conversion
+
+Convert the optimized data into a standardized format recognizable by AI algorithms (e.g., RGB or grayscale), while simultaneously compressing video data using H.264/H.265 encoding to reduce subsequent bandwidth requirements during transmission.
+
+-   Step 3: AI Target Processing – Core Decision-Making to Achieve Autonomous Tracking
+
+This constitutes the core of the product's "intelligent" functionality, where a tracker (integrated into the servo controller) loads a pre-trained AI model and makes three critical decisions with support from an image processing board:
+
+1. Target Detection and Recognition:
+
+The AI model performs frame-level scanning on preprocessed images, automatically identifying object types (human, vehicle, or drone) based on feature matching (e.g., human contours, vehicle shapes, drone dimensions), eliminating background interference (such as trees or buildings), and annotating the pixel coordinates of targets in the image.
+
+2. Tracking, Prediction, and Locking:
+
+Using the Kalman filtering algorithm, the system predicts the target's position in the next frame based on its historical motion trajectory (e.g., drone flight direction or pedestrian walking speed). Even when temporarily obstructed (e.g., by passing trees), it retains the trajectory information to prevent tracking interruptions and generates locking commands to ensure the camera/gimbal remains consistently aligned with the target.
+
+3. Target Positioning (Space Coordinate Calculation):
+
+The image processing board integrates camera parameters and the drone's own position (provided by an external flight controller) to convert the target's pixel coordinates into precise spatial coordinates (e.g., latitude, longitude, distance), achieving a unified "CEP 10-meter" positioning accuracy across the product series and delivering target location data to external devices such as anti-drone systems.
+
+-   Step 4: Execution Control – Hardware Integration for Stable Tracking
+
+The servo controller receives AI-driven commands to control camera/gimbal movements while communicating with external devices (drone flight controllers and ground stations), enabling both tracking execution and data output.
+
+1. Camera Angle Control:
+
+The servo controller uses AI-predicted target positions to drive the camera to fine-tune its angle (e.g., when the target moves to the right, the camera rotates to the right), ensuring that the target remains consistently at the center of the frame.
+
+2. Gimbal Image Stabilization Control:
+
+Jitter Detection: The image processing board utilizes "image feature point matching" to analyze the offset between adjacent frames (e.g., image displacement caused by drone roll or pitch jitter);
+
+3. Compensation Command: Send a reverse compensation command to the gimbal (e.g., when the drone sways right, the gimbal rotates left). The dual-axis mechanical gyroscope responds rapidly, achieving an image stabilization accuracy of ≤0.02° and compensating for the impact of shake on tracking performance.
+
+4. Angle range control: The pan-tilt head rotates within preset ranges (roll: -70° to +70°; pitch: -140° to +95°) to avoid exceeding mechanical limits.
+
+5. Data Output:
+
+Video Output: Send the compressed tracking video (including target markers) to the ground station or drone video transmission system via the "Network/Analog Video Interface".
+
+6. Control signal output: Through the "TTL serial port/SBUS interface", send the target position and tracking status (e.g., "locked/lost") to the drone's flight controller or anti-drone system, assisting external devices in decision-making (e.g., initiating anti-drone interference).
+
+-   Step 5: State Assurance – Environmental Adaptation + Exception Handling to Ensure Continuous Operation
+
+The product adapts to complex environments and handles anomalies through "real-time monitoring + dynamic adjustment," ensuring uninterrupted workflow:
+
+Environmental Adaptation Adjustment:
+
+1. Temperature adaptation: The sensor continuously monitors operating temperature (-20°C to +55°C). When temperatures are too low, the image processing board automatically reduces non-critical computations (e.g., simplifying image fusion algorithms) to prevent hardware lag.
+
+2. Rain Protection: The housing design combined with waterproofing of internal circuits ensures that the camera and interfaces remain dry during light rain conditions, maintaining normal data acquisition and transmission.
+
+exception handling:
+
+1. Target loss: If the AI tracker fails to detect the target (e.g., when it exits the field of view), it automatically triggers a "short-focus wide-area scan" to re-search for the target;
+
+2. Hardware failure: The servo controller monitors the camera's power supply (DC 10.8 V–26.4 V) and interface communication status. If the camera disconnects or voltage abnormalities occur, it immediately sends an alarm signal to the ground station and switches to "Manual Control Mode" to prevent complete failure.
+
+1.4 Technical Parameters
+
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Model                               |   CPDD075CW                                                 |   CPDD075CL    |   CPDD075      |   CPDD075           |   CPDD075           |   CPDD075           |
+|                                       |                                                             |                |                |                     |                     |                     |
+|                                       |                                                             |                |   CC           |   CWT               |   CLT               |   CCT               |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   System Metrics                      |                                                             |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Detection Target Recognition Type   |   Default Person, Vehicle (Drone)                           |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Support Target Recognition Distance |   Car: 1500 m; Person: 600 m                                |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Minimum Tracking Pixel              |   16*16                                                     |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Supports Picture-in-Picture?        |   support                                                   |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   AI Image Processing Board           |                                                             |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Main Computing Power (TOPS)         |   6T                                                        |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Output Interface                    |   Video: Network video, analog video;                       |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Output Interface                    |   Control interfaces: TTL serial port, network, CRSF, SBUS; |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Control Protocol                    |   CRSF、SBUS                                                |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Support Firmware                    |   BetaFlight/ArduPilot                                      |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Source                              |   DC10.8V～26.4V3A                                          |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Size (length*width*height, mm)      |   53*52*22                                                  |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Installation Hole Size (mm)         |   25.5*25.5                                                 |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Short‑focus Visible‑light Camera    |                                                             |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Sensor (Inch)                       |   1/4" CMOS                                                 |   N/A          |   1/4" CMOS    |   1/4" CMOS         |   N/A               |   1/4" CMOS         |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Pixel Size                          |   2.7μm×2.7μm                                               |   N/A          |   2.7μm×2.7μm  |   2.7μm×2.7μm       |   N/A               |   2.7μm×2.7μm       |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Focal Distance （mm）               |   1.75                                                      |   N/A          |   1.75         |   1.75              |   N/A               |   1.75              |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Field Of View (±5%)                 |   113.1°×63.6°                                              |   N/A          |   113.1°×63.6° |   113.1°×63.6°      |   N/A               |   113.1°×63.6°      |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Photo Resolution                    |   1280×720                                                  |   N/A          |   1280×720     |   1280×720          |   N/A               |   1280×720          |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Video Resolution                    |   1280×720                                                  |   N/A          |   1280×720     |   1280×720          |   N/A               |   1280×720          |
+|                                       |                                                             |                |                |                     |                     |                     |
+|                                       |   @100fps                                                   |                |   @100fps      |   @100fps           |                     |   @100fps           |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Camera Dimensions (L × W × H, mm)   |   25*19*20                                                  |   N/A          |   25*19*20     |   25*19*20          |   N/A               |   25*19*20          |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Telephoto Visible‑light Camera      |                                                             |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Sensor (Inch)                       |   N/A                                                       |   1/3.52" CMOS |   1/3.52" CMOS |   N/A               |   1/3.52" CMOS      |   1/3.52" CMOS      |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Pixel Size                          |   N/A                                                       |   2.2μm×2.2μm  |   2.2μm×2.2μm  |   N/A               |   2.2μm×2.2μm       |   2.2μm×2.2μm       |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Focal Distance （mm）               |   N/A                                                       |   16.26        |   16.26        |   N/A               |   16.26             |   16.26             |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Field Of View (±5%)                 |   N/A                                                       |   14.8°×8.4°   |   14.8°×8.4°   |   N/A               |   14.8°×8.4°        |   14.8°×8.4°        |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Photo Resolution                    |   N/A                                                       |   1920×1080    |   1920×1080    |   N/A               |   1920×1080         |   1920×1080         |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Video Resolution                    |   N/A                                                       |   1920×1080    |   1920×1080    |   N/A               |   1920×1080         |   1920×1080         |
+|                                       |                                                             |                |                |                     |                     |                     |
+|                                       |                                                             |   @50fps       |   @50fps       |                     |   @50fps            |   @50fps            |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Camera Dimensions (L × W × H, mm)   |   N/A                                                       |   26*29*18     |   26*29*18     |   N/A               |   26*29*18          |   26*29*18          |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Infrared Thermal Imaging            |                                                             |                |                |                     |                     |                     |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Response Band                       |   N/A                                                       |   N/A          |   N/A          |   8-14um, long-wave |   8-14um, long-wave |   8-14um, long-wave |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Pixel Size                          |   N/A                                                       |   N/A          |   N/A          |   12um              |   12um              |   12um              |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Pixel                               |   N/A                                                       |   N/A          |   N/A          |   384×288           |   384×288           |   384×288           |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Focal Distance （mm）               |   N/A                                                       |   N/A          |   N/A          |   10mm              |   10mm              |   10mm              |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Angle Of Field                      |   N/A                                                       |   N/A          |   N/A          |   16.9°×12.8°       |   16.9°×12.8°       |   16.9°×12.8°       |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Photo Resolution                    |   N/A                                                       |   N/A          |   N/A          |   384×288           |   384×288           |   384×288           |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Video Resolution                    |   N/A                                                       |   N/A          |   N/A          |   384×288           |   384×288           |   384×288           |
+|                                       |                                                             |                |                |                     |                     |                     |
+|                                       |                                                             |                |                |   @50fps            |   @50fps            |   @50fps            |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+|   Camera Dimensions (L × W × H, mm)   |   N/A                                                       |   N/A          |   N/A          |   30*21.5*34        |   30*21.5*34        |   30*21.5*34        |
++---------------------------------------+-------------------------------------------------------------+----------------+----------------+---------------------+---------------------+---------------------+
+
+1.5 Component Dimensions and Interface Specifications
+
+Circuit Board Dimensions and Interfaces
+
+Product Weight: 56 g
+
+[电路板]
+
+Telephoto Visible‑light Camera Dimension Interface
+
+Product weight: 13 g
+
+[长焦]
+
+Short‑focus Visible‑light Camera Dimension Interface
+
+Product weight: 10 g
+
+[短焦]
+
+Infrared Dimension Interface
+
+Product weight: 22 g
+
+[红外]
+
+Dual‑light Connection Base Dimension Interface
+
+Product weight: 20 g
+
+[双可见光]
+
+For mechanical structure digital modeling requiring gimbal components and control board components, please contact our sales team.
+
+1.6 Description of Electrical Interfaces
+
+Circuit Board Interface Diagram
+
+[FPV电路板]
+
+Note: All labeled interfaces are external interfaces.
+
+PWR&CTRL Interface Definition J10
+
++----------+----------------+------------------------------+------------+-------------+
+| Name     | Plugin Model   | Gimbal End Signal Definition | Pin Number | Function    |
++----------+----------------+------------------------------+------------+-------------+
+| TTL      | A1257WR-S-8P   | UART2_RX                     | 1          | Serial Port |
+|          |                |                              |            |             |
+|          |                |                              |            | Control     |
++----------+----------------+------------------------------+------------+-------------+
+|          |                | UART2_TX                     | 2          |             |
++----------+----------------+------------------------------+------------+-------------+
+|          |                | VM (retained)                | 3          |             |
++----------+----------------+------------------------------+------------+-------------+
+|          |                | GND                          | 4          |             |
++----------+----------------+------------------------------+------------+-------------+
+| POWER    |                | Source﹢(DC10.8V～26.4V)     | 5          | Source      |
+|          |                |                              |            |             |
+|          |                |                              |            | Import      |
++----------+----------------+------------------------------+------------+-------------+
+|          |                |                              | 6          |             |
++----------+----------------+------------------------------+------------+-------------+
+|          |                | Source﹣（GND）              | 7          |             |
++----------+----------------+------------------------------+------------+-------------+
+|          |                |                              | 8          |             |
++----------+----------------+------------------------------+------------+-------------+
+
+External Interface 2 J10
+
++-------+------------------------+---------+--------------------------+
+| PIN   | Definition             | Remarks | Drawing                  |
++-------+------------------------+---------+--------------------------+
+| 1     | UART2_RX_M1            | Serial  | []                       |
+|       |                        |         |                          |
+|       |                        | Port    |                          |
+|       |                        |         |                          |
+|       |                        | Power   |                          |
+|       |                        |         |                          |
+|       |                        | Input   |                          |
++-------+------------------------+---------+--------------------------+
+| 2     | UART2_TX_M1            |         |                          |
++-------+------------------------+---------+--------------------------+
+| 3     | DC_IN                  |         |                          |
++-------+------------------------+---------+--------------------------+
+| 4     | GND                    |         |                          |
++-------+------------------------+---------+--------------------------+
+| 5     | DC_IN                  |         |                          |
++-------+------------------------+---------+--------------------------+
+| 6     | DC_IN                  |         |                          |
++-------+------------------------+---------+--------------------------+
+| 7     | GND                    |         |                          |
++-------+------------------------+---------+--------------------------+
+| 8     | GND                    |         |                          |
++-------+------------------------+---------+--------------------------+
+
+Video Interface Definition J8
+
++-----------+----------------+------------------------------+------------+----------+
+| Name      | Plugin Model   | Gimbal End Signal Definition | Pin Number | Function |
++-----------+----------------+------------------------------+------------+----------+
+| Ethernet  | A1257WR-S-12P  | TX+                          | 1          | Network  |
+|           |                |                              |            |          |
+|           |                |                              |            | transfer |
++-----------+----------------+------------------------------+------------+----------+
+|           |                | TX-                          | 2          |          |
++-----------+----------------+------------------------------+------------+----------+
+|           |                | RX+                          | 3          |          |
++-----------+----------------+------------------------------+------------+----------+
+|           |                | RX-                          | 4          |          |
++-----------+----------------+------------------------------+------------+----------+
+| UART4     |                | UART4_RX                     | 5          |          |
++-----------+----------------+------------------------------+------------+----------+
+|           |                | UART4_TX                     | 6          |          |
++-----------+----------------+------------------------------+------------+----------+
+| SBUS      |                | GND                          | 7          | SBUS     |
+|           |                |                              |            |          |
+|           |                |                              |            | Control  |
++-----------+----------------+------------------------------+------------+----------+
+|           |                | SBUS_T                       | 8          |          |
++-----------+----------------+------------------------------+------------+----------+
+| USB-HOST  |                | VCC                          | 9          | USB      |
++-----------+----------------+------------------------------+------------+----------+
+|           |                | USB_DP                       | 10         |          |
++-----------+----------------+------------------------------+------------+----------+
+|           |                | USB_DM                       | 11         |          |
++-----------+----------------+------------------------------+------------+----------+
+|           |                | GND                          | 12         |          |
++-----------+----------------+------------------------------+------------+----------+
+
+External Interface 1 J8
+
++-------+-------------------------+----------+--------------------------+
+| PIN   | Definition              | Remarks  | Drawing                  |
++-------+-------------------------+----------+--------------------------+
+| 1     | TX＋                    | 100      | []                       |
+|       |                         |          |                          |
+|       |                         | Mbps     |                          |
+|       |                         |          |                          |
+|       |                         | Ethernet |                          |
++-------+-------------------------+----------+--------------------------+
+| 2     | TX -                    |          |                          |
++-------+-------------------------+----------+--------------------------+
+| 3     | RX＋                    |          |                          |
++-------+-------------------------+----------+--------------------------+
+| 4     | RX -                    |          |                          |
++-------+-------------------------+----------+--------------------------+
+| 5     | UART4_RX_M1             | Default: |                          |
+|       |                         |          |                          |
+|       |                         | Red      |                          |
++-------+-------------------------+----------+--------------------------+
+| 6     | UART4_TX_M1             |          |                          |
++-------+-------------------------+----------+--------------------------+
+| 7     | GND                     |          |                          |
++-------+-------------------------+----------+--------------------------+
+| 8     | SBUS_T                  |          |                          |
++-------+-------------------------+----------+--------------------------+
+| 9     | VCC5V0_USB              | USB -    |                          |
+|       |                         |          |                          |
+|       |                         | HOST     |                          |
++-------+-------------------------+----------+--------------------------+
+| 10    | USB2_OTGO_DP            |          |                          |
++-------+-------------------------+----------+--------------------------+
+| 11    | USB2_OTGO_DM            |          |                          |
++-------+-------------------------+----------+--------------------------+
+| 12    | GND                     |          |                          |
++-------+-------------------------+----------+--------------------------+
+
+Simulation Video Interface Definition J3
+
+  -------------- ------------------ ------------------------------ ------------ ----------
+  Name           Plugin Model       Gimbal End Signal Definition   Pin Number   Function
+
+  Analog Video   HC-1.0-3PWT        GND                            1            
+
+                                    VM                             2            
+
+                                    V0                             3            
+  -------------- ------------------ ------------------------------ ------------ ----------
+
+Hookup
+
+Circuit Board – Flight Control System – Receiver Wiring Diagram
+
+[接线图-英文]
+
+1.7 Supporting Cables
+
+[075线材][075线材1]
+
+2 Installation Method
+
+1. The CPDD075 is installed in an integrated configuration;
+
+2. For integrated installation, mount the camera and control circuit board separately: install the camera using the mechanical mounting interface on the rear top surface, while mounting the control board directly onto the customer's product. Ensure the distance between the circuit board interface and the camera remains within 50 mm.
+
+3. When installing the device, heat dissipation of the main circuit board must be taken into full consideration. The main heat-generating area is the shielding cover. If adequate heat dissipation measures cannot be guaranteed, a cooling fan can be installed as an optional accessory.
+
+2.1 Connection Between the gimbal and the UAV
+
+2.1.1 Power Supply
+
+The gimbal's power interface uses GH1.25mm terminals, with one end connected to the gimbal's power port and the other to the drone's power output port. For optimal performance, use a DC voltage of 10.8 V–26.4 V at 3 A as specified for GH1.25mm terminals.
+
+2.1.2 Network
+
+The gimbal's external network interface uses an RJ45 connector, allowing direct connection to a video transmission port for viewing or controlling the gimbal via network video streaming.
+
+2.1.3 SBUS/CRSF Interface
+
+The gimbal supports remote control via SBUS, CRSF, or the transition from SBUS to CRSF protocols. Channel configuration is detailed in Section 4.
+
+2.1.4 Control Serial Port
+
+The gimbal supports TTL-controlled serial ports and can be connected using a TTL serial cable.
+
+3 Gimbal Control
+
+3.1 Network Control
+
+Connect the gimbal's network port to the data link's sky-side port, and connect the PC to the data link's ground-side port. After configuring the PC's network segment to match that of the gimbal, launch the RemoteControl software on the PC to control the gimbal via the network.
+
+3.2 Serial Port Control
+
+Switch the gimbal to the required serial port mode and connect the corresponding cable. Connect the gimbal's serial port to the data link's airborne unit, while connecting the PC to its ground unit. On the PC, launch the RemoteControl software, configure the correct COM ports and baud rate, and you can then control the gimbal via the serial interface.
+
+3.3 SBUS/CRSF Control
+
+Connect the gimbal's SBUS/CRSF interface to the receiver, then map the remote control joysticks to the corresponding channels according to the gimbal's operational requirements to operate it remotely.
+
+3.4 Network Video Output
+
+Connect the gimbal's network port to the data link's sky-side port, and connect the PC to the data link's ground-side port. After configuring the PC's network segment to match that of the gimbal, open the RemoteControl display control software or another streaming client on the PC and enter the streaming address to access the gimbal's network video feed.
+
+4 Equipment Debugging
+
+PC Software: The display control software RemoteControl is included in the product package.
+
+Android app for the remote control: CTControl APP.
+
+4.1 Testing the gimbal using display control software
+
+4.1.1 Default Network Address for the gimbal
+
+Default IP address for the gimbal upon factory shipment: 192.168.144.108
+
+RTSP stream URL: rtsp://192.168.144.108/live/0
+
+4.1.2 Set the computer's local IP address
+
+Set the local IP address to a segment address within the 192.168.144 range.
+
+-   The gimbal's IP address is 192.168.144.108, so the PC's IP should be set to another address within this subnet to avoid conflicts with the gimbal.
+
+[]
+
+4.1.3 Using the RemoteControl Display Control Software
+
+After launching the display and control software, connect the gimbal's video feed and control interface. Once initialization is complete, you can operate the gimbal via this software.
+
+Note: In the upper computer software, CTRL+C switches to Chinese, and CTRL+E switches to English.
+
+-   Control software uses a serial port for connection management.
+
+In the system control interface of the display control software → Serial Device → Select Port → Click the "Open Serial Port" button. Port: The port connected to this device. baud rate: Default value 115200.
+
+[]
+
+-   Monitoring software uses UDP for control connections
+
+In the system control interface of the display control software, navigate to UDP Device → Enter server IP (product IP: 192.168.144.108) → Click the Connect button. The server port (9554) and local port (7001) are set as default values.
+
+Note: 1. After establishing a UDP connection, the host computer can control both the servo operation and functional operations of the pan-tilt unit.
+
+2. You can only choose either a UDP connection or a serial port connection.
+
+  [19538324eb127dd8547a0aca5cf61cd1]
+
+-   Control software for RTSP streaming transmission
+
+In the system control interface of the display control software, navigate to Video Device → Enter RTSP address (rtsp://192.168.144.108/live/0), then click the "Connect" button to start streaming.
+
+[]
+
+-   If there is no product video and you cannot perform control operations, check that the local IP address settings are correct.
+
+-   OSD Interface Introduction
+
+[2f2536e94b6b2fd2c1e4b636f80f7773]
+
+  ------------------------------------------- -----------------------------------------------------------------------------------------------------------------------------------------
+  1. Current Time                             Display the current time using GPS timing
+
+  2.Zoom Ratio                                DZ0/DZ1 represents the zoom ratios for wide-angle and telephoto lenses, respectively
+
+  3.Gimbal Stability Enhancement Function     The pan-tilt head has enabled stabilization functionality
+
+  4.Photo/Video Recording Function            Control the gimbal camera: Press to start photography; video recording shows on the right side
+
+  5. Memory Display                           Memory Capacity and Remaining Percentage
+
+  6.Gimbal Incline Scale                      Show the gimbal's current pitch angle (currently displayed as 7° upward) with the orientation scale at the top of the image
+
+  7.Number of GPS satellites                  Displays the current number of GPS satellites
+
+  8.GPS coordinate                            Displays the current geographic coordinates (latitude and longitude)
+
+  9.Posture Angle Display                     Output gimbal attitude angle (to be mounted on the aircraft)
+
+  10.Temperature of the AI Processing Board   Show the temperature of the AI processing board
+
+  11.Picture-in-picture display               Show an image of another lens, with the infrared camera in the bottom-right corner
+
+  12. Drawing Label Recognition Information   [9] Is an identifier for the target: 0 indicates the type (1 for vehicle, 0 for person), followed by latitude and longitude coordinates
+  ------------------------------------------- -----------------------------------------------------------------------------------------------------------------------------------------
+
+-   Introduction to the functions of buttons in the monitoring and control software
+
+[25deed9a-1e9c-42b2-9d4e-5fba302b479e]
+
+  -------------------------------- ---------------------------------------------------------------------------------------------------
+  1.Broad Field of View            Infrared Camera View Zoom In
+
+  2.Narrow field of vision         Infrared Camera View Zoom Out
+
+  3.Electronic Zoom                Infrared Camera View Zoom In
+
+  4.Switch to Pseudo Color         Switch between different infrared colors (more than 10 types)
+
+  5.Zoom +                         Visible light/Zoom Camera's Zoom In
+
+  6.Zoom-                          Visible light/Zoom Camera's Zoom Out
+
+  7.Single Range Measurement       Single-point ranging to determine the target distance
+
+  8.Continuous Range Measurement   Enable continuous ranging and refresh data in real time
+
+  9.Stop ranging                   Stop ranging and pause data output
+
+  10.Infrared/TV Switching         Switch between wide-angle and infrared perspectives; the initial view is wide-angle visible light
+
+  11. Take a screenshot            The camera starts taking photos (An SD card must be inserted to begin).
+
+  12. Record/Stop                  The camera starts recording. Press once to begin, press again to stop
+  -------------------------------- ---------------------------------------------------------------------------------------------------
+
+[25deed9a-1e9c-42b2-9d4e-5fba302b479e]
+
++---------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 13.Continuous Screenshot Taking | The camera starts taking photos continuously. Tap to stop shooting                                                                                                                                                                                      |
++---------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 14. Character Overlap           | On the left side of the button, there are three options: Hide/Pixel Part, Show Briefly/All Pixels (Default)                                                                                                                                             |
+|                                 |                                                                                                                                                                                                                                                         |
+|                                 | Hide: Turn off all OSD displays; the product version number appears in the top-left corner of the screen                                                                                                                                                |
+|                                 |                                                                                                                                                                                                                                                         |
+|                                 | Pixel section (brief description): Hide the azimuth/pitch scale in the view and display GPS/temperature at the bottom of the screen                                                                                                                     |
+|                                 |                                                                                                                                                                                                                                                         |
+|                                 | All Pixels (Default): Default image display with full OSD coverage                                                                                                                                                                                      |
++---------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 15.Point Selection Tracking     | On the left side of the button, you'll find options for selecting point tracking positions. Enter azimuth/pitch pixel offset values to determine the tracking location; to cancel tracking, click the Cancel Tracking button or right-click the screen. |
++---------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 16. Lock                        | Panoramic view position: When clicked, the panoramic view remains at the current location                                                                                                                                                               |
++---------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 17. Follow                      | The camera and viewfinder move together randomly.                                                                                                                                                                                                       |
++---------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 18.Return to Center             | Return the camera view to its initial position                                                                                                                                                                                                          |
++---------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 19.View from below              | The viewing angle moves downward to ≥90°.                                                                                                                                                                                                               |
++---------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 20.Servo Off                    | The Gimbal servo has stopped working.                                                                                                                                                                                                                   |
++---------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 21. Favorites                   | The pan-tilt head moves upward to ≥80°                                                                                                                                                                                                                  |
++---------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+
+[25deed9a-1e9c-42b2-9d4e-5fba302b479e]
+
++---------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 22.Follow the Tracks of   | This feature can be triggered in three ways.                                                                                                                          |
+|                           |                                                                                                                                                                       |
+|                           | 1: Double-click anywhere on the screen to track; this does not depend on whether the target is recognized.                                                            |
+|                           |                                                                                                                                                                       |
+|                           | 2: Select the green box, then click Track. The gimbal will lock onto the green identification box (the box is colored green and red, with only one target within it). |
+|                           |                                                                                                                                                                       |
+|                           | 3: Select a number, enter the inspection number, then click Track. The pan-tilt unit will track and lock the target based on the number.                              |
++---------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 23. Up, Down, Left, Right | Control the gimbal servo function: up/down controls the pitch angle, left/right controls the azimuth direction.                                                       |
++---------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+
+[]
+
++--------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 24.Serial Connection                 | The pan-tilt head uses a serial port for control. After connecting the serial port according to the interface specifications, click Update Serial Port, select the updated port and baud rate, then click Open Serial Port to use it for control.                                 |
++--------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 25.UDP linkage                       | The pan-tilt unit uses UDP control. Enter the server IP (pan-tilt unit IP), server port number (9554), and local port, then click Connect to control it via UDP.                                                                                                                  |
+|                                      |                                                                                                                                                                                                                                                                                   |
+| (Choose between UDP and serial port) |                                                                                                                                                                                                                                                                                   |
++--------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 26.RTSP Streaming                    | This step enables the PTZ to retrieve video streams via RTSP. The RTSP streaming address (rtsp://192.168.144.108/live/0) must be updated simultaneously if the IP address changes. This product supports a single stream; for other camera perspectives, click the switch button. |
++--------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+
+[][]
+
++---------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 27. Target Template | Set the size of the center point recognition box. Click the type to choose Custom, Small, Medium, Large, or Extra Large template. For Custom, enter pixel values below and click Set to complete.                                       |
++---------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 28. Custom Command  | This feature requires use in conjunction with a serial communication protocol, as demonstrated by the zoom function.                                                                                                                    |
+|                     |                                                                                                                                                                                                                                         |
+|                     | In the serial protocol, the Zoom+ command is represented by 45H with a byte size of 4 or 5 bytes. Therefore, Type B should be set to 45, while Type CD should be set to 01 00 00 00. Finally, click Send to complete the Zoom+ command. |
++---------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 29. Text Control    | This feature supports extended messages defined in JSON format, using an IP query as an example.                                                                                                                                        |
+|                     |                                                                                                                                                                                                                                         |
+| (JSON protocol)     | Enter "sh:ifconfig" in the command line and click Send to receive the following output: "echo ok ip 192.168.144.108". For other commands, refer to the protocol documentation.                                                          |
++---------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+
+4.1.4 Using the CTControlAPP Software
+
+After downloading the remote control software, open the CTControl app (assuming the connection is established).
+
+-   Software connects to the gimbal
+
+[356198a16a4bb599b7c01bec4b53bf8e]
+
+URL：rtsp://192.168.144.108/live/0
+
+IP：192.168.144.108
+
+Port：9554
+
+After completing the required configurations, click Log in to enter the display interface.
+
+-   Introduction to the OSD Interface and Its Functions
+
+[b95a88e184bbb1acb43ff4b1022a649d]
+
+This section covers only modified and newly added features; other OSD descriptions follow the same format as RemoteControl.
+
++----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 1. Time Display                  | Interface time display requires GPS timing synchronization                                                                                                                                                                                                  |
++----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 2. Return Key                    | Return the camera view to its initial position                                                                                                                                                                                                              |
++----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 3. View Switching /              | Click this button; there are 4 options in total.                                                                                                                                                                                                            |
+|                                  |                                                                                                                                                                                                                                                             |
+| Infrared Pseudo-color Switching  | Visible1: Initial view captured by a wide-angle visible-light camera;                                                                                                                                                                                       |
+|                                  |                                                                                                                                                                                                                                                             |
+|                                  | IR: Image from an infrared camera;                                                                                                                                                                                                                          |
+|                                  |                                                                                                                                                                                                                                                             |
+|                                  | Visible&IR: Zoom camera view;                                                                                                                                                                                                                               |
+|                                  |                                                                                                                                                                                                                                                             |
+|                                  | Change Color: Infrared Pseudo-color Switching                                                                                                                                                                                                               |
++----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 4.  Zoom +/-                     | This button offers five options: Zoom In/Zoom Out, Focus In/Focus Out, and IR Zoom. Zoom In/Out adjusts magnification (+/–); long press performs continuous zoom adjustment; a single tap initiates an adjustment; IR Zoom enables infrared electronic zoom |
++----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 5. Tracking and Locking Function | The gimbal locks the current crosshair position; you can also track and lock it by double-clicking the screen                                                                                                                                               |
++----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 6. Video                         | The gimbal has started recording. Tap again to stop recording                                                                                                                                                                                               |
++----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 7. Take a photo                  | The gimbal starts taking photos                                                                                                                                                                                                                             |
++----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 8. Laser rangefinder             | This gimbal does not use a laser and does not provide annotations.                                                                                                                                                                                          |
++----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 9. View from below               | The pan-tilt head moves downward to ≥90°                                                                                                                                                                                                                    |
++----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| 10. Number of GPS satellites     | Show the number of satellites for the current GPS                                                                                                                                                                                                           |
++----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+
+4.2 Body Video Recording Reading
+
+Method 1
+
+The memory card slot for the photovoltaic gimbal is located inside the plastic plug of the control box. To remove the memory card, open the plug and press it; the card will pop out. To install the card, press the plug again.
+
+Method 2
+
+After establishing the gimbal network connection, access files via FTP by entering ftp://192.168.144.108 on the file management page, pressing Enter, and entering the login credentials (username: ftp2; password: 123456) to access the files.
+
+[]
+
+Method 3
+
+If the system's default folder cannot access the capsule's FTP server, use an FTP tool to log in.
+
+1.  After opening the software, click Session;
+
+2.  In the pop-up window, select FTP as the protocol, enter your IP address and username, then enter your password.
+
+3.  After completing the setup, click OK;
+
+    []
+
+4.  Select the configured address in the conversation window;
+
+5.  Double-click the connection to access the gimbal's FTP server.
+
+6.  After logging in, you can view files on the gimbal's memory card and directly copy the required files to your computer.
+
+[]
+
+4.3 Remote Control SBUS/CRSF Channel Settings
+
+The SBUS channel mapping is as follows:
+
+  ------------------ ---------------------------------- ----------------------------
+  Channel            Function                           Remarks
+
+  channel 1          Pitch                              
+
+  channel 2          Yaw                                
+
+  channel 3          Center / Downward View             Three-stage switch channel
+
+  channel 4          Visible Light/Infrared Switching   
+
+  channel 5          Switch Pseudo Color                
+
+  channel 6          Photo/Videography                  Three-stage switch channel
+
+  channel 7          Zoom +/-                           
+
+  channel 8          Track/Cancel Tracking              Three-stage switch channel
+
+  channel 9          Temperature Drift Calibration      
+
+  channel 10         laser ranging                      
+
+  channel 11         X-axis Tracking Point Correction   
+
+  channel 12         Y-axis Tracking Point Correction   
+  ------------------ ---------------------------------- ----------------------------
+
+The mapping of CRSF and SBUS to the CRSF channel is as follows:
+
+  ------------------ -------------------------------------------------------------------------------------------- ----------------------------
+  Channel            Function                                                                                     Remarks
+
+  channel 1          Roll Value                                                                                   
+
+  channel 2          Inclination Value                                                                            
+
+  channel 3          Throttle Value                                                                               
+
+  channel 4          Orientation Value                                                                            
+
+  channel 5                                                                                                       
+
+  channel 6                                                                                                       
+
+  channel 7          Target Lock and Tracking (including Unlock)                                                  Three-stage switch channel
+
+  channel 8          Adjust the gimbal's pitch movement                                                           
+
+  channel 9          AI Detection Target Rotation                                                                 
+
+  channel 10         Video Switching                                                                              
+
+  channel 11         Photo taking, continuous photo taking, video recording, and video recording stop functions   Three-stage switch channel
+
+  channel 12         Control the gimbal's directional movement                                                    
+  ------------------ -------------------------------------------------------------------------------------------- ----------------------------
+
+4.4 Firmware Upgrade
+
+The CPDD075 series firmware is pre-flashed before shipment. Technical support can be provided for remote or in-factory upgrades when necessary.
+
+5. After-sales Service and Warranty
+
+We assure you that if you encounter any issues or difficulties while using our product, you can contact us for proper resolution.
+
+1. Repair Process
+
+If the product you purchased does not function properly, please contact the official after-sales support center for assistance.
+
+There are typically two types of product issues that require repair:
+
+-   Product Fault
+
+-   Human-induced damage
+
+Products falling under either of the above categories can be returned to the manufacturer for repair. For product malfunctions, free repairs are provided during the warranty period. For issues occurring after the warranty period or due to user-induced damage, additional fees may apply; please refer to the official quotation for details.
+
+2. Warranty Policy
+
+To protect consumers' legitimate rights and interests, we strictly comply with the national "Three Guarantees Regulations" and other relevant laws and regulations, clearly define the provisions regarding repair, replacement, and return of related products, and diligently fulfill our responsibilities and obligations for these services.
+
+After purchasing our products, customers may receive the following services if issues or malfunctions specified in the Three Guarantees Regulations occur and are confirmed by authorized dealers or manufacturer technicians, provided they present an invoice or other purchase documentation.
+
+-   7-day return guarantee
+
+3. Return Conditions:
+
+1) Within 7 calendar days upon receipt of the product, if the item has no manufacturing defects, with intact outer packaging, accessories, free gifts and user manuals, free of any man-made damage, unactivated, and resalable without impairment.
+
+2) Within 7 calendar days from the date of receipt, if it is discovered that the product has performance defects other than those caused by human error.
+
+You have the right to refuse a customer's return request in the following situations:
+
+1) Return requests submitted more than 7 calendar days after the date of receipt;
+
+2) The return product packaging list is incomplete, lacking outer packaging, accessories, gifts, or instructions; or the product or packaging is damaged due to human error.
+
+3) Failure to provide valid purchase vouchers or documents when submitting a return request, or the provided documents show signs of forgery or alteration;
+
+4) The product damage is determined not to be caused by inherent quality defects; due to unauthorized modifications, improper installation, failure to follow the instructions for use and operation; or introduction of foreign objects (water, oil, sand, etc.) into the product.
+
+5) Damaging or altering labels, machine serial numbers, waterproof marks, anti-counterfeiting marks, etc.;
+
+6) Product damage caused by force majeure events such as fire, flood, lightning strike, or traffic accident;
+
+7) After contacting our company to confirm the return service, you failed to ship the defective product within 7 calendar days.
+
+-   Free exchange within 15 days
+
+4. Exchange Conditions:
+
+1) Within 15 calendar days from the date of receipt, if product damage is discovered during transportation and cargo damage documentation provided by the carrier can be submitted;
+
+2) Within 15 calendar days from the date of receipt, if it is discovered that the product deviates significantly from the original product description in one or more critical aspects;
+
+3) Within 15 calendar days from the date of receipt, if performance defects not caused by human error are identified in the product.
+
+You have the right to refuse a customer's exchange request in the following situations:
+
+1) Exchange requests submitted more than 15 calendar days after the date of receipt;
+
+2) Failure to provide valid purchase vouchers or documents during product exchange, or the vouchers/documents exhibit signs of forgery or alteration; incomplete exchanged items, or items with damage caused by human factors;
+
+3) Technical support testing confirmed that the product has no quality issues;
+
+4) The product damage is determined not to be caused by inherent quality defects; due to unauthorized modifications, improper installation, failure to follow the instructions for use and operation; or introduction of foreign objects (water, oil, sand, etc.) into the product.
+
+5) Damaging or altering labels, machine serial numbers, waterproof marks, anti-counterfeiting marks, etc.;
+
+6) Products damaged due to force majeure events such as fire, flood, lightning strike, or traffic accident;
+
+7) After contacting our company to confirm the exchange service, the defective product was not shipped within 15 calendar days;
+
+8) If the product is damaged during transportation and no damage report issued by the shipping company has been provided;
+
+9) Other circumstances not specified under the Three Guarantees Regulations.
+
+-   Free warranty for one year
+
+5. Warranty Conditions:
+
+1) After purchasing the product, if it is used normally within the specified warranty period and any issues arise that are not attributable to human error...
+
+2) Performance failures caused by the aforementioned reasons;
+
+3) The product has not been manually disassembled, modified, or modified with additional components;
+
+4) Provide valid proof of purchase or relevant documents.
+
+The product is not eligible for the free warranty service in the following cases:
+
+1) Collisions or damage to the product caused by human factors;
+
+2) The product has suffered damage due to unauthorized modifications, disassembly, or opening of the packaging without proper guidance;
+
+3) Damage to the product resulting from improper installation, use, or operation without proper guidance;
+
+4) Damage caused by the customer's self-repair or assembly of the product without proper guidance;
+
+5) The product has suffered damage due to unauthorized circuit modifications or improper use;
+
+6) Damage caused by forced use when components are aged or damaged;
+
+7) Damage caused by reliability and compatibility issues when used concurrently with non-officially certified third-party components;
+
+8) The machine serial number, factory label, and other markings show no signs of damage or alteration;
+
+9) After contacting our company or a distributor to confirm warranty service, the defective product has not been shipped within 7 calendar days.
+
+6. Fault Diagnosis
+
+If you encounter any issues while using this product, follow the solutions listed in the table below to resolve them. If the issue persists despite applying the solutions described in this manual, please contact our customer service department.
+
++-----+--------------------------------------------+-------------------------------------------------------------+---------------------------------------------------------------------------------------+
+| No. | Fault phenomenon                           | Cause                                                       | Solution                                                                              |
++-----+--------------------------------------------+-------------------------------------------------------------+---------------------------------------------------------------------------------------+
+| 1   | Totally unable to control the gimbal       | a)  Wiring error or loose connection;                       | a)  Carefully verify the connection signal definition to ensure secure wiring.        |
+|     |                                            |                                                             |                                                                                       |
+|     |                                            | b)  Abnormal power supply on the gimbal                     | b)  Ensure the power supply meets the requirements; shut down and restart the gimbal. |
+|     |                                            |                                                             |                                                                                       |
+|     |                                            | c)  Error in the control software settings;                 | c)  Check the IP address and port settings for the display control software;          |
++-----+--------------------------------------------+-------------------------------------------------------------+---------------------------------------------------------------------------------------+
+| 2   | No video                                   | a)  Intercepted by firewall and antivirus software;         | a)  Turn off the firewall and antivirus software;                                     |
+|     |                                            |                                                             |                                                                                       |
+|     |                                            | b)  Error in display control software settings;             | b)  Reset the display control software connection address;                            |
++-----+--------------------------------------------+-------------------------------------------------------------+---------------------------------------------------------------------------------------+
+| 3   | Blurred imaging or decreased image quality | a)  The observed target object is too close to the payload; | a)  Adjust the viewing distance and check whether the image is clearly formed;        |
+|     |                                            |                                                             |                                                                                       |
+|     |                                            | b)  The lens contains a foreign object;                     | b)  After cleaning the lens with cotton and alcohol, observe the imaging quality.     |
+|     |                                            |                                                             |                                                                                       |
+|     |                                            | c)  Other reasons;                                          | c)  If there is still no improvement, contact the manufacturer.                       |
++-----+--------------------------------------------+-------------------------------------------------------------+---------------------------------------------------------------------------------------+

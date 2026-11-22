@@ -1,0 +1,50 @@
+{
+    "telemetry_protocol": "SITL",
+    "telemetry_host": "127.0.0.1",
+    "telemetry_port": 5760,
+    "taisync_udp_in": "sitl:internal:sim",
+    "web_host": "0.0.0.0",
+    "web_port": 8005,
+    "video_base_dir": "video",
+    "bing_maps_key": "",
+    "cesium_ion_token": "",
+    "camera_tilt_deg": 30.0,
+    "camera_vfov_deg": 60.0,
+    "camera_hfov_deg": 80.0,
+    "cpdd_ip": "192.168.144.108",
+    "cpdd_udp_port": 9554,
+    "cpdd_local_port": 7002,
+    "cpdd_rtsp_url": "rtsp://192.168.144.108/live/0",
+    "cam_switch_channel": 8,
+    "cam_pwm_wide": 1100,
+    "cam_pwm_narrow": 1500,
+    "cam_pwm_thermal": 1900,
+    "cameras": {
+        "WIDE": {
+            "name": "EO-WIDE (GENIS)",
+            "url": "rtsp://192.168.144.108/live/0"
+        },
+        "NARROW": {
+            "name": "EO-NARROW (DAR/ZOOM)",
+            "url": "rtsp://192.168.144.108/live/0"
+        },
+        "THERMAL": {
+            "name": "IR-THERMAL (TERMAL)",
+            "url": "rtsp://192.168.144.108/live/0"
+        },
+        "WEBCAM": {
+            "name": "DATASET / WEBCAM (TEST)",
+            "url": "dataset:video01"
+        }
+    },
+    "yolo_model": "yolov8n.pt",
+    "yolo_imgsz": 416,
+    "ai_frame_skip": 1,
+    "stream_jpeg_quality": 68,
+    "confidence_threshold": 0.45,
+    "target_classes": "0, 2, 3, 4, 5, 7, 14",
+    "intercept_pitch_max": -45.0,
+    "intercept_thrust_max": 1.0,
+    "yaw_rate_gain": 1.8,
+    "pitch_rate_gain": 1.5
+}

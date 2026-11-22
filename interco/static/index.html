@@ -1,0 +1,2128 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>INTERCO // 7" TACTICAL TOUCH GCS</title>
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
+<link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+<style>
+  :root {
+    --hud-green: #39ff5a;
+    --hud-glow: 0 0 4px rgba(57, 255, 90, 0.5);
+    --hud-amber: #ffaa00;
+    --hud-red: #ff2e2e;
+    --hud-cyan: #38bdf8;
+    --border-subtle: rgba(57, 255, 90, 0.4);
+    --font-hud: 'Consolas', 'Lucida Console', 'Roboto Mono', monospace;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background: #040705;
+    color: var(--hud-green);
+    font-family: var(--font-hud);
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    touch-action: manipulation;
+  }
+
+  .view-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 1 !important;
+    border: none !important;
+  }
+
+  .view-pip {
+    position: fixed !important;
+    top: 48px !important;
+    right: 10px !important;
+    width: 225px !important;
+    height: 138px !important;
+    z-index: 15 !important;
+    border: 1.5px solid var(--hud-green) !important;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.88) !important;
+    background: #030705 !important;
+    overflow: hidden !important;
+    cursor: pointer;
+  }
+
+  #camera-stage { background: #040705; }
+  #video-stream {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+  }
+  #hud-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  #map-stage { background: #050a0e; }
+  #cesium-container { width: 100%; height: 100%; }
+  .cesium-viewer-bottom { display: none !important; }
+
+  .pip-badge {
+    display: none;
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 26px;
+    padding: 0 8px;
+    background: rgba(2, 8, 5, 0.85);
+    border-bottom: 1px solid rgba(57, 255, 90, 0.35);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: var(--hud-green);
+    z-index: 6;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .view-pip .pip-badge { display: flex; }
+
+  .cpdd-optics-bar {
+    position: fixed;
+    top: 192px;
+    right: 10px;
+    width: 225px;
+    display: flex;
+    gap: 4px;
+    z-index: 16;
+    pointer-events: auto;
+  }
+  .cpdd-optics-bar .tac-btn {
+    flex: 1;
+    min-height: 32px;
+    padding: 0 4px;
+    font-size: 10px;
+    background: rgba(4, 12, 7, 0.88);
+  }
+
+  .pip-expand-btn {
+    background: rgba(57, 255, 90, 0.2);
+    border: 1px solid var(--hud-green);
+    color: var(--hud-green);
+    font-family: var(--font-hud);
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 7px;
+    cursor: pointer;
+  }
+
+  #no-signal-banner {
+    display: none;
+    position: absolute;
+    top: 16%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 14px;
+    background: rgba(12, 8, 6, 0.88);
+    border: 1px solid var(--hud-amber);
+    color: var(--hud-amber);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-align: center;
+    z-index: 4;
+    pointer-events: none;
+  }
+  .view-pip #no-signal-banner {
+    top: 44%;
+    font-size: 9px;
+    padding: 3px 6px;
+  }
+
+  .top-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 42px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 10px;
+    background: linear-gradient(180deg, rgba(2, 6, 4, 0.9) 0%, rgba(2, 6, 4, 0.2) 100%);
+    z-index: 20;
+    pointer-events: auto;
+  }
+  .sys-title {
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 2px;
+    text-shadow: var(--hud-glow);
+  }
+  .top-status-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  #fps-indicator {
+    font-size: 10px;
+    padding: 6px 8px;
+    background: rgba(4, 10, 6, 0.82);
+    border: 1px solid var(--hud-cyan);
+    color: var(--hud-cyan);
+    letter-spacing: 0.5px;
+    font-weight: 800;
+  }
+  #live-log-drawer {
+    display: none;
+    position: fixed;
+    top: 48px;
+    left: 10px;
+    width: 440px;
+    max-width: 92vw;
+    max-height: 220px;
+    background: rgba(3, 8, 6, 0.90);
+    border: 1px solid var(--hud-cyan);
+    padding: 8px 10px;
+    z-index: 25;
+    font-size: 10px;
+    line-height: 1.45;
+    color: #d8f8e5;
+    overflow-y: auto;
+    pointer-events: auto;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.85);
+  }
+  .log-hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(56, 189, 248, 0.35);
+    padding-bottom: 4px;
+    margin-bottom: 5px;
+    color: var(--hud-cyan);
+    font-weight: 800;
+  }
+
+  .hud-tag {
+    font-size: 10px;
+    padding: 6px 8px;
+    background: rgba(4, 10, 6, 0.78);
+    border: 1px solid var(--border-subtle);
+    letter-spacing: 0.6px;
+  }
+
+  #targets-dock {
+    position: fixed;
+    bottom: 58px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 20;
+    pointer-events: auto;
+    max-width: 96vw;
+    overflow-x: auto;
+  }
+  .target-pod {
+    width: 118px;
+    flex-shrink: 0;
+    background: rgba(4, 12, 7, 0.9);
+    border: 1.5px solid var(--hud-green);
+    padding: 4px;
+    cursor: pointer;
+    position: relative;
+  }
+  .target-pod.locked {
+    border: 2px solid var(--hud-red);
+    background: rgba(65, 6, 6, 0.94);
+    box-shadow: 0 0 16px rgba(255, 46, 46, 0.8);
+  }
+  .target-pod img {
+    width: 100%;
+    height: 66px;
+    object-fit: cover;
+    display: block;
+    border: 1px solid rgba(57, 255, 90, 0.25);
+    margin-bottom: 3px;
+    pointer-events: none;
+  }
+  .pod-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    pointer-events: none;
+  }
+  .pod-action {
+    margin-top: 3px;
+    font-size: 10px;
+    text-align: center;
+    padding: 4px 0;
+    background: rgba(57, 255, 90, 0.22);
+    color: var(--hud-green);
+    letter-spacing: 0.8px;
+    font-weight: 800;
+    pointer-events: none;
+  }
+  .target-pod.locked .pod-action {
+    background: var(--hud-red);
+    color: #fff;
+  }
+
+  .bottom-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 52px;
+    padding: 0 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(0deg, rgba(2, 6, 4, 0.95) 0%, rgba(2, 6, 4, 0.45) 100%);
+    z-index: 20;
+    pointer-events: auto;
+  }
+
+  .sensor-group, .bottom-flight-group {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+  }
+
+  .tac-btn {
+    background: rgba(6, 14, 9, 0.88);
+    color: var(--hud-green);
+    border: 1px solid var(--border-subtle);
+    min-height: 38px;
+    padding: 0 10px;
+    font-family: var(--font-hud);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tac-btn:active {
+    transform: scale(0.97);
+  }
+  .tac-btn.active {
+    background: var(--hud-green);
+    color: #030704;
+    border-color: var(--hud-green);
+  }
+  .tac-btn.webcam-btn {
+    border-color: rgba(56, 189, 248, 0.5);
+    color: var(--hud-cyan);
+  }
+  .tac-btn.webcam-btn.active {
+    background: var(--hud-cyan);
+    color: #030704;
+    border-color: var(--hud-cyan);
+  }
+
+  #btn-abort-engagement {
+    display: none;
+    background: var(--hud-red);
+    color: #ffffff;
+    border: 1.5px solid #ff8a84;
+    min-height: 38px;
+    padding: 0 12px;
+    font-family: var(--font-hud);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    box-shadow: 0 0 16px rgba(255, 46, 46, 0.8);
+    animation: pulse-red 0.7s infinite;
+  }
+  @keyframes pulse-red { 50% { opacity: 0.5; } }
+
+  .mode-select {
+    background: rgba(6, 14, 9, 0.94);
+    color: var(--hud-green);
+    border: 1px solid var(--hud-green);
+    height: 38px;
+    padding: 0 8px;
+    font-family: var(--font-hud);
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    outline: none;
+  }
+  .mode-select option {
+    background: #070d0b;
+    color: var(--hud-green);
+  }
+
+  #bottom-mode-display {
+    padding: 0 12px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    background: rgba(4, 12, 7, 0.92);
+    border: 1px solid var(--hud-green);
+    color: var(--hud-green);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    text-shadow: var(--hud-glow);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  #bottom-mode-display.engaged {
+    border-color: var(--hud-red);
+    background: rgba(65, 6, 6, 0.94);
+    color: #ff6b63;
+    animation: pulse-red 0.7s infinite;
+  }
+
+  #takeoff-modal, #settings-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 5, 4, 0.86);
+    z-index: 45;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(4px);
+  }
+  .takeoff-box {
+    width: 340px;
+    max-width: 92vw;
+    background: #070d0b;
+    border: 1.5px solid var(--hud-cyan);
+    padding: 16px;
+  }
+  .takeoff-box h3 {
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    color: var(--hud-cyan);
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(56, 189, 248, 0.3);
+    padding-bottom: 6px;
+  }
+  .takeoff-presets {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .modal-panel {
+    width: 94vw;
+    max-width: 780px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #070d0b;
+    border: 1px solid var(--hud-green);
+    padding: 14px;
+  }
+  .modal-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+  }
+  .modal-top h2 { font-size: 13px; letter-spacing: 1.5px; color: #fff; }
+  .sec-hdr {
+    font-size: 10px;
+    color: var(--hud-amber);
+    letter-spacing: 1.2px;
+    margin: 10px 0 6px 0;
+    border-left: 2px solid var(--hud-amber);
+    padding-left: 6px;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .form-grid-3 {
+    display: grid;
+    grid-template-columns: 1.2fr 1.1fr 0.7fr;
+    gap: 8px;
+  }
+  .fld { display: flex; flex-direction: column; gap: 3px; }
+  .fld label { font-size: 10px; color: rgba(210, 235, 220, 0.85); }
+  .fld input, .fld select {
+    background: #030605;
+    border: 1px solid var(--border-subtle);
+    color: #fff;
+    height: 36px;
+    padding: 0 8px;
+    font-family: var(--font-hud);
+    font-size: 12px;
+    user-select: text;
+    width: 100%;
+  }
+  .fld input:disabled { opacity: 0.45; }
+  .fld small { font-size: 9px; color: rgba(160, 190, 175, 0.65); }
+
+  .input-with-btn { display: flex; gap: 6px; }
+
+  #test-report {
+    display: none;
+    margin-top: 10px;
+    padding: 10px;
+    background: #040907;
+    border: 1px solid var(--hud-green);
+    font-size: 11px;
+    line-height: 1.6;
+    color: #e0f5ea;
+  }
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-subtle);
+  }
+</style>
+</head>
+<body>
+
+  <div id="camera-stage" class="view-fullscreen" ondblclick="handleStageDoubleClick('camera')">
+    <div class="pip-badge" onclick="setLayoutMode(false)">
+      <span>KAMERA + HUD</span>
+      <button type="button" class="pip-expand-btn">BÜYÜT</button>
+    </div>
+    <img id="video-stream" src="/video_feed" alt="INTERCO EO/IR">
+    <canvas id="hud-canvas"></canvas>
+    <div id="no-signal-banner">NO VIDEO // <span id="ns-cam">WIDE</span></div>
+  </div>
+
+  <div id="map-stage" class="view-pip" ondblclick="handleStageDoubleClick('map')">
+    <div class="pip-badge" onclick="setLayoutMode(true)">
+      <span>3D HARİTA</span>
+      <button type="button" class="pip-expand-btn">BÜYÜT</button>
+    </div>
+    <div id="cesium-container"></div>
+  </div>
+
+  <div class="cpdd-optics-bar" id="cpdd-optics-bar">
+    <button type="button" class="tac-btn" onclick="sendCpddCmd('ZOOM_IN')">ZOOM +</button>
+    <button type="button" class="tac-btn" onclick="sendCpddCmd('ZOOM_OUT')">ZOOM -</button>
+    <button type="button" class="tac-btn" onclick="sendCpddCmd('IR_PALETTE')">IR RENK</button>
+  </div>
+
+  <!-- CANLI SİSTEM & FPS TEŞHİS LOG PANELİ -->
+  <div id="live-log-drawer">
+    <div class="log-hdr">
+      <span id="log-perf-summary">DIAGNOSTICS // FPS & HARDWARE</span>
+      <button type="button" style="background:none;border:none;color:var(--hud-red);font-weight:800;cursor:pointer;" onclick="toggleLiveLogs()">[X]</button>
+    </div>
+    <div id="live-log-lines"></div>
+  </div>
+
+  <div class="top-bar">
+    <div class="sys-title">INTERCO</div>
+    <div class="top-status-group">
+      <div id="fps-indicator">FPS: -- / --</div>
+      <div id="mav-indicator" class="hud-tag">LINK: BEKLENIYOR</div>
+      <div id="cam-indicator" class="hud-tag">AUTO [WIDE]</div>
+      <button id="btn-toggle-logs" class="tac-btn" onclick="toggleLiveLogs()">LOG</button>
+      <button class="tac-btn" onclick="openSettings()">⚙ AYARLAR</button>
+      <button id="btn-fullscreen" class="tac-btn" title="Tam Ekran Aç/Kapat" onclick="toggleBrowserFullscreen()">⛶ TAM EKRAN</button>
+    </div>
+  </div>
+
+  <div id="targets-dock"></div>
+
+  <div class="bottom-bar">
+    <div class="sensor-group">
+      <button id="btn-AUTO" class="tac-btn active" onclick="setCamera('AUTO')">AUTO</button>
+      <button id="btn-WIDE" class="tac-btn" onclick="setCamera('WIDE')">GENİŞ</button>
+      <button id="btn-NARROW" class="tac-btn" onclick="setCamera('NARROW')">DAR</button>
+      <button id="btn-THERMAL" class="tac-btn" onclick="setCamera('THERMAL')">TERMAL</button>
+      <button id="btn-FUSION" class="tac-btn" onclick="setCamera('FUSION')">EO+IR</button>
+      <button id="btn-WEBCAM" class="tac-btn webcam-btn" onclick="setCamera('WEBCAM')">TEST</button>
+    </div>
+
+    <div id="bottom-mode-display">MOD: STBY</div>
+
+    <div class="bottom-flight-group">
+      <button id="btn-abort-engagement" onclick="abortEngagement()">✖ İPTAL</button>
+      <select id="flight-mode-select" class="mode-select" title="Uçuş Modu" onchange="onFlightModeSelect(this.value)">
+        <option value="STBY">STBY</option>
+        <option value="STABILIZE">STABILIZE</option>
+        <option value="ALT_HOLD">ALT_HOLD</option>
+        <option value="LOITER">LOITER</option>
+        <option value="POSHOLD">POSHOLD</option>
+        <option value="GUIDED">GUIDED</option>
+        <option value="AUTO">AUTO</option>
+        <option value="AUTO-SCAN">AUTO-SCAN</option>
+        <option value="RTL">RTL</option>
+        <option value="LAND">LAND</option>
+        <option value="ACRO">ACRO</option>
+        <option value="SPORT">SPORT</option>
+        <option value="INTERCEPT" disabled>INTERCEPT</option>
+        <option value="TAKEOFF" disabled>TAKEOFF</option>
+        <option value="LANDED" disabled>LANDED</option>
+      </select>
+      <button id="btn-bottom-takeoff-land" class="tac-btn" style="border-color:var(--hud-cyan); color:var(--hud-cyan);" onclick="toggleTakeoffLand()">⬆ KALKIŞ</button>
+      <button class="tac-btn" style="border-color:#a78bfa; color:#c4b5fd;" onclick="sendFlightCmd('RTL')">⌂ EVE DÖN</button>
+    </div>
+  </div>
+
+  <div id="takeoff-modal">
+    <div class="takeoff-box">
+      <h3>⬆ KALKIŞ İRTİFASI ONAYI</h3>
+      <div class="fld">
+        <label>Hedef İrtifa (Metre)</label>
+        <input type="number" id="takeoff-alt-input" value="50" min="5" max="1000" step="5">
+      </div>
+      <div class="takeoff-presets">
+        <button type="button" class="tac-btn" onclick="setTakeoffPreset(30)">30m</button>
+        <button type="button" class="tac-btn" onclick="setTakeoffPreset(50)">50m</button>
+        <button type="button" class="tac-btn" onclick="setTakeoffPreset(100)">100m</button>
+        <button type="button" class="tac-btn" onclick="setTakeoffPreset(150)">150m</button>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="tac-btn" onclick="closeTakeoffModal()">İPTAL</button>
+        <button type="button" class="tac-btn" style="background:var(--hud-cyan); color:#030704; border-color:var(--hud-cyan);" onclick="confirmTakeoff()">✔ ONAYLA</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings-modal">
+    <div class="modal-panel">
+      <div class="modal-top">
+        <h2>INTERCO // SİSTEM AYARLARI</h2>
+        <button class="tac-btn" onclick="closeSettings()">KAPAT [X]</button>
+      </div>
+
+      <div class="sec-hdr">01 // TELEMETRİ (SITL / UDP / TCP)</div>
+      <div class="form-grid-3">
+        <div class="fld">
+          <label>Protokol</label>
+          <select id="cfg-tel-proto" onchange="onProtocolChange()">
+            <option value="SITL">SITL (Dahili Simülatör)</option>
+            <option value="UDP">UDP (TAISYNC Dinle)</option>
+            <option value="TCP">TCP Client (Drona Bağlan)</option>
+            <option value="TCPIN">TCP Server (Dinle)</option>
+          </select>
+        </div>
+        <div class="fld">
+          <label id="lbl-tel-host">IP Adresi</label>
+          <input type="text" id="cfg-tel-host" placeholder="127.0.0.1">
+        </div>
+        <div class="fld">
+          <label>Port</label>
+          <input type="number" id="cfg-tel-port" value="5760">
+        </div>
+      </div>
+
+      <div class="sec-hdr">02 // CPDD075 KAMERA SDK & TEKİL RTSP (192.168.144.108)</div>
+      <div class="form-grid-3">
+        <div class="fld">
+          <label>Kamera / Gimbal IP Adresi</label>
+          <input type="text" id="cfg-cpdd-ip" value="192.168.144.108" oninput="onCpddIpInput()">
+          <small>Fabrika varsayılanı: 192.168.144.108</small>
+        </div>
+        <div class="fld">
+          <label>UDP Server / Local Port</label>
+          <div class="input-with-btn">
+            <input type="number" id="cfg-cpdd-udp-port" value="9554" title="Server Port (9554)">
+            <input type="number" id="cfg-cpdd-local-port" value="7002" title="Local Port (7002)">
+          </div>
+          <small>Server: 9554 | Local Port: 7002</small>
+        </div>
+        <div class="fld">
+          <label>Kamera Montaj Açısı / Tilt (°)</label>
+          <input type="number" step="1" min="-90" max="90" id="cfg-cam-tilt" value="30">
+          <small>Varsayılan: +30°</small>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:8px;">
+        <div class="fld">
+          <label>Tekil RTSP Video Akış Adresi (Single Stream)</label>
+          <input type="text" id="cfg-cpdd-rtsp" value="rtsp://192.168.144.108/live/0">
+          <small>Geniş/Dar/Termal geçişleri bu tek akış üzerinden UDP ile yapılır</small>
+        </div>
+        <div class="fld">
+          <label>Dikey Görüş Açısı / vFOV (Derece °)</label>
+          <input type="number" step="1" min="20" max="140" id="cfg-cam-vfov" value="60">
+          <small>Ufuk çizgisi kompanzasyonu (Varsayılan: 60°)</small>
+        </div>
+        <div class="fld">
+          <label>Network UDP Komut Testi (Kılavuz Madde 29)</label>
+          <div class="input-with-btn">
+            <input type="text" id="cfg-cpdd-text-cmd" value="sh:ifconfig" placeholder="sh:ifconfig">
+            <button type="button" class="tac-btn" onclick="sendCpddRawText()">GÖNDER</button>
+          </div>
+          <small id="cpdd-raw-reply">Cihaz IP sorgusu: sh:ifconfig (UDP 9554)</small>
+        </div>
+        <div class="fld">
+          <label>Network Hex Komut Testi (Kılavuz Madde 28 - Type B / CD)</label>
+          <div class="input-with-btn">
+            <input type="text" id="cfg-cpdd-hex-b" value="2F" style="width:65px;" title="Type B (Örn: 2F)">
+            <input type="text" id="cfg-cpdd-hex-cd" value="01 00 00 00" title="Type CD (Örn: 01 00 00 00)">
+            <button type="button" class="tac-btn" onclick="sendCpddRawHex()">HEX AT</button>
+          </div>
+          <small>2F: Görünüm (01:Geniş, 02:Dar, 03:Termal) | 45: Zoom</small>
+        </div>
+        <div class="fld" style="grid-column: span 2;">
+          <label>Bing Maps API Key (İsteğe Bağlı)</label>
+          <input type="text" id="cfg-bing-key" placeholder="Boşsa otomatik Bing Uydu açılır">
+        </div>
+      </div>
+
+      <div class="sec-hdr">03 // TEST & DATASET KAYNAĞI (video01 - video20)</div>
+      <div class="form-grid-3">
+        <div class="fld">
+          <label>Kaynak Tipi</label>
+          <select id="cfg-test-type" onchange="onTestTypeChange()">
+            <option value="DATASET">Dataset (video01-20)</option>
+            <option value="WEBCAM">Web Kamerası (0, 1)</option>
+            <option value="CUSTOM">Video Dosyası (.mp4)</option>
+          </select>
+        </div>
+        <div class="fld" id="box-dataset-select">
+          <label>Dataset Klasörü</label>
+          <select id="cfg-dataset-folder"></select>
+        </div>
+        <div class="fld" id="box-custom-source" style="display:none;">
+          <label id="lbl-custom-source">Kamera / Dosya</label>
+          <div class="input-with-btn">
+            <input type="text" id="cfg-cam-webcam" placeholder="0">
+            <button type="button" id="btn-scan-cam" class="tac-btn" onclick="scanWebcams()">TARA</button>
+          </div>
+        </div>
+        <div class="fld">
+          <label>Dataset Ana Dizini</label>
+          <input type="text" id="cfg-video-base" placeholder="video">
+        </div>
+      </div>
+
+      <div class="sec-hdr">04 // HEDEF TANIMA & PID GÜDÜM</div>
+      <div class="form-grid">
+        <div class="fld">
+          <label>YOLOv8 Model</label>
+          <input type="text" id="cfg-model">
+        </div>
+        <div class="fld">
+          <label>Güven Eşiği (Confidence)</label>
+          <input type="number" step="0.05" min="0.1" max="0.95" id="cfg-conf">
+        </div>
+        <div class="fld">
+          <label>Hedef Sınıf ID'leri</label>
+          <input type="text" id="cfg-classes">
+          <small>4: Sabit Kanat, 2/3/5/7: Araçlar, 14: Hava Hedefi, 0: Test</small>
+        </div>
+        <div class="fld">
+          <label>Saldırı İtkisi (0.1 - 1.0)</label>
+          <input type="number" step="0.1" min="0.1" max="1.0" id="cfg-thrust">
+        </div>
+        <div class="fld">
+          <label>Yaw Rate Gain</label>
+          <input type="number" step="0.1" id="cfg-yaw-gain">
+        </div>
+        <div class="fld">
+          <label>Pitch Rate Gain</label>
+          <input type="number" step="0.1" id="cfg-pitch-gain">
+        </div>
+      </div>
+
+      <div id="test-report"></div>
+
+      <div class="modal-footer">
+        <button class="tac-btn" onclick="closeSettings()">İPTAL</button>
+        <button id="btn-save-test" class="tac-btn active" onclick="saveAndTest()">KAYDET VE TEST ET</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const ws = new WebSocket(`ws://${window.location.host}/ws/telemetry`);
+  const targetsDock = document.getElementById("targets-dock");
+  const abortBtn = document.getElementById("btn-abort-engagement");
+  const noSigBanner = document.getElementById("no-signal-banner");
+
+  let lastTargetsSignature = "";
+  let isMapFullscreen = false;
+
+  const hudState = {
+    pitch: 0, targetPitch: 0,
+    roll: 0, targetRoll: 0,
+    yaw: 0, targetYaw: 0,
+    alt: 0, targetAlt: 0,
+    speed: 0, targetSpeed: 0,
+    airspeed: 0,
+    climb: 0,
+    throttle: 0,
+    battery_v: 0,
+    satellites: 0,
+    armed: false,
+    inAir: false,
+    mode: "STBY",
+    engaged: false,
+    lockedTargetId: null,
+    aiStatus: "INIT",
+    activeCam: "WIDE",
+    cameraTiltDeg: 30.0,
+    cameraVfovDeg: 60.0,
+    cameraHfovDeg: 80.0,
+    estTargetLat: null,
+    estTargetLon: null,
+    estTargetAlt: 0,
+    estTargetLabel: "",
+    lat: 39.925533,
+    lon: 32.866287,
+    homeLat: 39.925533,
+    homeLon: 32.866287
+  };
+
+  let logsVisible = false;
+  function toggleLiveLogs() {
+    logsVisible = !logsVisible;
+    const drawer = document.getElementById("live-log-drawer");
+    const btn = document.getElementById("btn-toggle-logs");
+    if (drawer) drawer.style.display = logsVisible ? "block" : "none";
+    if (btn) btn.classList.toggle("active", logsVisible);
+  }
+
+  function toggleBrowserFullscreen() {
+    const docEl = document.documentElement;
+    const isFs = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+
+    if (!isFs) {
+      if (docEl.requestFullscreen) {
+        docEl.requestFullscreen().catch(() => {});
+      } else if (docEl.webkitRequestFullscreen) {
+        docEl.webkitRequestFullscreen();
+      } else if (docEl.mozRequestFullScreen) {
+        docEl.mozRequestFullScreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.mozCancelFullScreen) {
+        document.mozCancelFullScreen();
+      }
+    }
+  }
+
+  function updateFullscreenButtonLabel() {
+    const btn = document.getElementById("btn-fullscreen");
+    if (!btn) return;
+    const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
+    if (isFs) {
+      btn.innerText = "🗗 ÇIKIŞ";
+      btn.classList.add("active");
+    } else {
+      btn.innerText = "⛶ TAM EKRAN";
+      btn.classList.remove("active");
+    }
+    setTimeout(() => {
+      resizeHudCanvas();
+      if (cesiumViewer) {
+        cesiumViewer.resize();
+        cesiumViewer.scene.requestRender();
+      }
+    }, 80);
+  }
+
+  document.addEventListener("fullscreenchange", updateFullscreenButtonLabel);
+  document.addEventListener("webkitfullscreenchange", updateFullscreenButtonLabel);
+
+  function setLayoutMode(mapFull) {
+    isMapFullscreen = mapFull;
+    const camStage = document.getElementById("camera-stage");
+    const mapStage = document.getElementById("map-stage");
+
+    const optBar = document.getElementById("cpdd-optics-bar");
+    if (isMapFullscreen) {
+      mapStage.className = "view-fullscreen";
+      camStage.className = "view-pip";
+      if (optBar) optBar.style.display = "none";
+    } else {
+      camStage.className = "view-fullscreen";
+      mapStage.className = "view-pip";
+      if (optBar) optBar.style.display = "flex";
+    }
+    setTimeout(() => {
+      resizeHudCanvas();
+      if (cesiumViewer) {
+        cesiumViewer.resize();
+        cesiumViewer.scene.requestRender();
+      }
+    }, 60);
+  }
+
+  function handleStageDoubleClick(stageName) {
+    if (stageName === "map" && !isMapFullscreen) {
+      setLayoutMode(true);
+    } else if (stageName === "camera" && isMapFullscreen) {
+      setLayoutMode(false);
+    }
+  }
+
+  let cesiumViewer = null;
+  let droneEntity = null;
+  let headingLineEntity = null;
+  let altitudeDropLineEntity = null;
+  let altitudeLabelEntity = null;
+  let homeEntity = null;
+  let targetEntity = null;
+  let targetDropLineEntity = null;
+  let targetLabelEntity = null;
+  let engagementLinkEntity = null;
+
+  function tileXYToQuadKey(x, y, level) {
+    let quadKey = "";
+    for (let i = level; i > 0; i--) {
+      let digit = 0;
+      const mask = 1 << (i - 1);
+      if ((x & mask) !== 0) digit++;
+      if ((y & mask) !== 0) digit += 2;
+      quadKey += digit.toString();
+    }
+    return quadKey;
+  }
+
+  function createBingAerialProvider(bingKey) {
+    if (bingKey && bingKey.trim().length > 10 && typeof Cesium.BingMapsImageryProvider !== "undefined") {
+      return Cesium.BingMapsImageryProvider.fromUrl("https://dev.virtualearth.net", {
+        key: bingKey.trim(),
+        mapStyle: Cesium.BingMapsStyle.AERIAL
+      });
+    }
+
+    return Promise.resolve(
+      new Cesium.UrlTemplateImageryProvider({
+        url: "https://ecn.t{s}.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=14265",
+        subdomains: ["0", "1", "2", "3"],
+        minimumLevel: 1,
+        maximumLevel: 19,
+        credit: "Microsoft Bing Maps Aerial",
+        customTags: {
+          quadkey: function (imageryProvider, x, y, level) {
+            return tileXYToQuadKey(x, y, level);
+          }
+        }
+      })
+    );
+  }
+
+  function createTarget2DIconDataUrl() {
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+        <circle cx="32" cy="32" r="22" fill="rgba(255,46,46,0.22)" stroke="#ff2e2e" stroke-width="2.5" stroke-dasharray="8 4"/>
+        <line x1="32" y1="4" x2="32" y2="18" stroke="#ff2e2e" stroke-width="2.5"/>
+        <line x1="32" y1="46" x2="32" y2="60" stroke="#ff2e2e" stroke-width="2.5"/>
+        <line x1="4" y1="32" x2="18" y2="32" stroke="#ff2e2e" stroke-width="2.5"/>
+        <line x1="46" y1="32" x2="60" y2="32" stroke="#ff2e2e" stroke-width="2.5"/>
+        <polygon points="32,22 42,32 32,42 22,32" fill="#ff2e2e" stroke="#ffffff" stroke-width="1.5"/>
+      </svg>`;
+    return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
+  }
+
+  function createDrone2DIconDataUrl() {
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+        <line x1="14" y1="14" x2="50" y2="50" stroke="#39ff5a" stroke-width="4" stroke-linecap="round"/>
+        <line x1="50" y1="14" x2="14" y2="50" stroke="#39ff5a" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="14" cy="14" r="7" fill="rgba(57,255,90,0.25)" stroke="#39ff5a" stroke-width="2.5"/>
+        <circle cx="50" cy="14" r="7" fill="rgba(57,255,90,0.25)" stroke="#39ff5a" stroke-width="2.5"/>
+        <circle cx="14" cy="50" r="7" fill="rgba(57,255,90,0.25)" stroke="#39ff5a" stroke-width="2.5"/>
+        <circle cx="50" cy="50" r="7" fill="rgba(57,255,90,0.25)" stroke="#39ff5a" stroke-width="2.5"/>
+        <polygon points="32,6 24,26 32,21 40,26" fill="#ff2e2e" stroke="#ffffff" stroke-width="1.2"/>
+        <circle cx="32" cy="32" r="5" fill="#050a07" stroke="#39ff5a" stroke-width="2"/>
+      </svg>`;
+    return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
+  }
+
+  function computeDestinationPoint(latDeg, lonDeg, bearingDeg, distanceMeters) {
+    const R = 6378137.0;
+    const brng = (bearingDeg * Math.PI) / 180.0;
+    const lat1 = (latDeg * Math.PI) / 180.0;
+    const lon1 = (lonDeg * Math.PI) / 180.0;
+
+    const lat2 = Math.asin(
+      Math.sin(lat1) * Math.cos(distanceMeters / R) +
+      Math.cos(lat1) * Math.sin(distanceMeters / R) * Math.cos(brng)
+    );
+    const lon2 = lon1 + Math.atan2(
+      Math.sin(brng) * Math.sin(distanceMeters / R) * Math.cos(lat1),
+      Math.cos(distanceMeters / R) - Math.sin(lat1) * Math.sin(lat2)
+    );
+    return {
+      lat: (lat2 * 180.0) / Math.PI,
+      lon: (lon2 * 180.0) / Math.PI
+    };
+  }
+
+  async function initCesiumMap() {
+    let bingKey = "";
+    try {
+      const res = await fetch("/api/settings");
+      const s = await res.json();
+      bingKey = s.bing_maps_key || "";
+      if (s.camera_tilt_deg !== undefined) hudState.cameraTiltDeg = parseFloat(s.camera_tilt_deg);
+      if (s.camera_vfov_deg !== undefined) hudState.cameraVfovDeg = parseFloat(s.camera_vfov_deg);
+    } catch (e) {}
+
+    cesiumViewer = new Cesium.Viewer("cesium-container", {
+      baseLayer: false,
+      baseLayerPicker: false,
+      geocoder: false,
+      homeButton: false,
+      sceneModePicker: false,
+      navigationHelpButton: false,
+      animation: false,
+      timeline: false,
+      fullscreenButton: false,
+      infoBox: false,
+      selectionIndicator: false,
+      terrainProvider: new Cesium.EllipsoidTerrainProvider()
+    });
+
+    const bingProvider = await createBingAerialProvider(bingKey);
+    cesiumViewer.imageryLayers.addImageryProvider(bingProvider);
+
+    cesiumViewer.scene.globe.enableLighting = false;
+    cesiumViewer.scene.globe.baseColor = Cesium.Color.fromCssColorString("#0b1410");
+
+    const droneIconUrl = createDrone2DIconDataUrl();
+
+    homeEntity = cesiumViewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(hudState.homeLon, hudState.homeLat, 0),
+      point: {
+        pixelSize: 7,
+        color: Cesium.Color.fromCssColorString("#a78bfa"),
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 2
+      },
+      label: {
+        text: "H",
+        font: "bold 10px Consolas, monospace",
+        fillColor: Cesium.Color.fromCssColorString("#c4b5fd"),
+        pixelOffset: new Cesium.Cartesian2(0, -12)
+      }
+    });
+
+    droneEntity = cesiumViewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(hudState.lon, hudState.lat, hudState.alt),
+      billboard: {
+        image: droneIconUrl,
+        width: 34,
+        height: 34,
+        rotation: -Cesium.Math.toRadians(hudState.yaw),
+        alignedAxis: Cesium.Cartesian3.UNIT_Z,
+        verticalOrigin: Cesium.VerticalOrigin.CENTER,
+        horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY
+      }
+    });
+
+    const initDest = computeDestinationPoint(hudState.lat, hudState.lon, hudState.yaw, 85.0);
+    headingLineEntity = cesiumViewer.entities.add({
+      polyline: {
+        positions: [
+          Cesium.Cartesian3.fromDegrees(hudState.lon, hudState.lat, hudState.alt),
+          Cesium.Cartesian3.fromDegrees(initDest.lon, initDest.lat, hudState.alt)
+        ],
+        width: 2.2,
+        material: Cesium.Color.fromCssColorString("#ff3b30")
+      }
+    });
+
+    altitudeDropLineEntity = cesiumViewer.entities.add({
+      polyline: {
+        positions: [
+          Cesium.Cartesian3.fromDegrees(hudState.lon, hudState.lat, hudState.alt),
+          Cesium.Cartesian3.fromDegrees(hudState.lon, hudState.lat, 0.0)
+        ],
+        width: 1.4,
+        material: new Cesium.PolylineDashMaterialProperty({
+          color: Cesium.Color.fromCssColorString("#39ff5a"),
+          dashLength: 8.0
+        })
+      }
+    });
+
+    altitudeLabelEntity = cesiumViewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(hudState.lon, hudState.lat, hudState.alt / 2.0),
+      label: {
+        text: `ALT: ${hudState.alt.toFixed(1)} m`,
+        font: "bold 11px Consolas, monospace",
+        fillColor: Cesium.Color.fromCssColorString("#39ff5a"),
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 3,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        showBackground: true,
+        backgroundColor: new Cesium.Color(0.02, 0.06, 0.04, 0.8),
+        backgroundPadding: new Cesium.Cartesian2(5, 2),
+        pixelOffset: new Cesium.Cartesian2(36, 0),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY
+      }
+    });
+
+    const targetIconUrl = createTarget2DIconDataUrl();
+
+    targetEntity = cesiumViewer.entities.add({
+      show: false,
+      position: Cesium.Cartesian3.fromDegrees(hudState.lon, hudState.lat, 50),
+      billboard: {
+        image: targetIconUrl,
+        width: 32,
+        height: 32,
+        verticalOrigin: Cesium.VerticalOrigin.CENTER,
+        horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY
+      }
+    });
+
+    targetLabelEntity = cesiumViewer.entities.add({
+      show: false,
+      position: Cesium.Cartesian3.fromDegrees(hudState.lon, hudState.lat, 50),
+      label: {
+        text: "TGT",
+        font: "bold 10px Consolas, monospace",
+        fillColor: Cesium.Color.fromCssColorString("#ff6b63"),
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 3,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        showBackground: true,
+        backgroundColor: new Cesium.Color(0.18, 0.02, 0.02, 0.85),
+        backgroundPadding: new Cesium.Cartesian2(5, 2),
+        pixelOffset: new Cesium.Cartesian2(0, -24),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY
+      }
+    });
+
+    targetDropLineEntity = cesiumViewer.entities.add({
+      show: false,
+      polyline: {
+        positions: [
+          Cesium.Cartesian3.fromDegrees(hudState.lon, hudState.lat, 50),
+          Cesium.Cartesian3.fromDegrees(hudState.lon, hudState.lat, 0)
+        ],
+        width: 1.2,
+        material: new Cesium.PolylineDashMaterialProperty({
+          color: Cesium.Color.fromCssColorString("#ff2e2e"),
+          dashLength: 6.0
+        })
+      }
+    });
+
+    engagementLinkEntity = cesiumViewer.entities.add({
+      show: false,
+      polyline: {
+        positions: [
+          Cesium.Cartesian3.fromDegrees(hudState.lon, hudState.lat, hudState.alt),
+          Cesium.Cartesian3.fromDegrees(hudState.lon, hudState.lat, 50)
+        ],
+        width: 1.8,
+        material: new Cesium.PolylineDashMaterialProperty({
+          color: Cesium.Color.fromCssColorString("#ffaa00"),
+          dashLength: 10.0
+        })
+      }
+    });
+
+    cesiumViewer.trackedEntity = undefined;
+    cesiumViewer.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    cesiumViewer.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+    cesiumViewer.camera.setView({
+      destination: Cesium.Cartesian3.fromDegrees(hudState.lon, hudState.lat - 0.004, 450.0),
+      orientation: {
+        heading: Cesium.Math.toRadians(0.0),
+        pitch: Cesium.Math.toRadians(-48.0),
+        roll: 0.0
+      }
+    });
+  }
+
+  initCesiumMap();
+
+  async function applyBingLayer(bingKey) {
+    if (!cesiumViewer) return;
+    cesiumViewer.imageryLayers.removeAll();
+    const bingProvider = await createBingAerialProvider(bingKey);
+    cesiumViewer.imageryLayers.addImageryProvider(bingProvider);
+  }
+
+  let lastMapLat = null;
+  let lastMapLon = null;
+  let lastMapAlt = null;
+  let lastMapYaw = null;
+  let lastMapSpd = null;
+
+  let lastTargetVisState = false;
+  let lastTgtLat = null;
+  let lastTgtLon = null;
+  let lastTgtAlt = null;
+
+  function setTargetMapVisibility(visible) {
+    if (lastTargetVisState === visible) return;
+    lastTargetVisState = visible;
+    if (targetEntity) targetEntity.show = visible;
+    if (targetLabelEntity) targetLabelEntity.show = visible;
+    if (targetDropLineEntity) targetDropLineEntity.show = visible;
+    if (engagementLinkEntity) engagementLinkEntity.show = visible;
+  }
+
+  function updateCesiumDroneFromTelemetry(lat, lon, alt, yaw, pitch, speed, homeLat, homeLon, isEngaged, lockedTarget) {
+    if (!cesiumViewer || !droneEntity) return;
+
+    if (homeEntity && homeLat && homeLon) {
+      homeEntity.position = Cesium.Cartesian3.fromDegrees(homeLon, homeLat, 0);
+    }
+
+    const dronePos = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
+    const groundPos = Cesium.Cartesian3.fromDegrees(lon, lat, 0.0);
+    const midPos = Cesium.Cartesian3.fromDegrees(lon, lat, alt / 2.0);
+
+    const droneChanged = (
+      lat !== lastMapLat ||
+      lon !== lastMapLon ||
+      alt !== lastMapAlt ||
+      yaw !== lastMapYaw ||
+      speed !== lastMapSpd
+    );
+    if (droneChanged) {
+      lastMapLat = lat;
+      lastMapLon = lon;
+      lastMapAlt = alt;
+      lastMapYaw = yaw;
+      lastMapSpd = speed;
+
+      droneEntity.position = dronePos;
+      droneEntity.billboard.rotation = -Cesium.Math.toRadians(yaw);
+
+      if (headingLineEntity) {
+        const lineLen = Math.max(85.0, speed * 4.5);
+        const dest = computeDestinationPoint(lat, lon, yaw, lineLen);
+        headingLineEntity.polyline.positions = [
+          dronePos,
+          Cesium.Cartesian3.fromDegrees(dest.lon, dest.lat, alt)
+        ];
+      }
+
+      if (altitudeDropLineEntity) {
+        altitudeDropLineEntity.polyline.positions = [dronePos, groundPos];
+      }
+
+      if (altitudeLabelEntity) {
+        altitudeLabelEntity.position = midPos;
+        altitudeLabelEntity.label.text = `ALT: ${alt.toFixed(1)} m`;
+      }
+    }
+
+    if (!isEngaged) {
+      setTargetMapVisibility(false);
+      lastTgtLat = null;
+      lastTgtLon = null;
+      return;
+    }
+
+    if (lockedTarget) {
+      const hfov = hudState.cameraHfovDeg || 80.0;
+      const vfov = hudState.cameraVfovDeg || 60.0;
+      const tiltDeg = hudState.cameraTiltDeg || 30.0;
+
+      const errX = Number(lockedTarget.err_x || 0);
+      const errY = Number(lockedTarget.err_y || 0);
+      const estDist = Number(lockedTarget.est_dist_m || 140.0);
+
+      const bearingDeg = (yaw + errX * (hfov / 2.0) + 360.0) % 360.0;
+      const elevDeg = pitch + tiltDeg - (errY * (vfov / 2.0));
+      const elevRad = (elevDeg * Math.PI) / 180.0;
+
+      const horizDist = Math.max(15.0, estDist * Math.cos(elevRad));
+      const estAlt = Math.max(2.0, alt + estDist * Math.sin(elevRad));
+      const tgtCoord = computeDestinationPoint(lat, lon, bearingDeg, horizDist);
+
+      hudState.estTargetLat = tgtCoord.lat;
+      hudState.estTargetLon = tgtCoord.lon;
+      hudState.estTargetAlt = estAlt;
+      hudState.estTargetLabel = `TD-${String(lockedTarget.id).padStart(2, "0")} [${lockedTarget.cls_label || "TGT"}] ~${Math.round(estDist)}m`;
+    } else if (hudState.estTargetLat === null) {
+      const dest = computeDestinationPoint(lat, lon, yaw, 140.0);
+      hudState.estTargetLat = dest.lat;
+      hudState.estTargetLon = dest.lon;
+      hudState.estTargetAlt = Math.max(5.0, alt);
+      hudState.estTargetLabel = "ESTIMATED TGT";
+    }
+
+    setTargetMapVisibility(true);
+
+    if (
+      hudState.estTargetLat !== lastTgtLat ||
+      hudState.estTargetLon !== lastTgtLon ||
+      hudState.estTargetAlt !== lastTgtAlt ||
+      droneChanged
+    ) {
+      lastTgtLat = hudState.estTargetLat;
+      lastTgtLon = hudState.estTargetLon;
+      lastTgtAlt = hudState.estTargetAlt;
+
+      const tgtPos = Cesium.Cartesian3.fromDegrees(hudState.estTargetLon, hudState.estTargetLat, hudState.estTargetAlt);
+      const tgtGroundPos = Cesium.Cartesian3.fromDegrees(hudState.estTargetLon, hudState.estTargetLat, 0.0);
+
+      if (targetEntity) targetEntity.position = tgtPos;
+      if (targetLabelEntity) {
+        targetLabelEntity.position = tgtPos;
+        targetLabelEntity.label.text = hudState.estTargetLabel;
+      }
+      if (targetDropLineEntity) {
+        targetDropLineEntity.polyline.positions = [tgtPos, tgtGroundPos];
+      }
+      if (engagementLinkEntity) {
+        engagementLinkEntity.polyline.positions = [dronePos, tgtPos];
+      }
+    }
+  }
+
+  function updateTakeoffLandButtons() {
+    const btnBottom = document.getElementById("btn-bottom-takeoff-land");
+    if (!btnBottom) return;
+
+    if (hudState.inAir) {
+      btnBottom.innerText = "⬇ İNİŞ";
+      btnBottom.style.borderColor = "var(--hud-amber)";
+      btnBottom.style.color = "var(--hud-amber)";
+    } else {
+      btnBottom.innerText = "⬆ KALKIŞ";
+      btnBottom.style.borderColor = "var(--hud-cyan)";
+      btnBottom.style.color = "var(--hud-cyan)";
+    }
+  }
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    const t = data.telemetry;
+
+    hudState.targetPitch = t.pitch || 0;
+    hudState.targetRoll = t.roll || 0;
+    hudState.targetYaw = (t.yaw || 0) % 360;
+    hudState.targetAlt = t.alt !== undefined ? t.alt : 0;
+    hudState.targetSpeed = t.groundspeed || 0;
+    hudState.airspeed = t.airspeed || 0;
+    hudState.climb = t.climb || 0;
+    hudState.throttle = t.throttle || 0;
+    hudState.battery_v = t.battery_v || 0;
+    hudState.satellites = t.satellites || 0;
+    hudState.armed = Boolean(t.armed);
+    hudState.inAir = t.in_air !== undefined ? Boolean(t.in_air) : (hudState.targetAlt > 1.0);
+    hudState.mode = t.mode || "STBY";
+    hudState.engaged = Boolean(t.engaged || data.locked_target_id !== null);
+    hudState.lockedTargetId = data.locked_target_id;
+    hudState.aiStatus = data.model_status || "INIT";
+    hudState.activeCam = data.active_camera || "WIDE";
+
+    if (t.lat && t.lon) {
+      hudState.lat = t.lat;
+      hudState.lon = t.lon;
+    }
+    if (t.home_lat && t.home_lon) {
+      hudState.homeLat = t.home_lat;
+      hudState.homeLon = t.home_lon;
+    }
+
+    const lockedObj = (data.targets || []).find(item => item.locked) || null;
+    const engagedNow = Boolean(t.engaged || data.locked_target_id !== null);
+
+    updateCesiumDroneFromTelemetry(
+      hudState.lat,
+      hudState.lon,
+      hudState.targetAlt,
+      hudState.targetYaw,
+      hudState.targetPitch,
+      hudState.targetSpeed,
+      hudState.homeLat,
+      hudState.homeLon,
+      engagedNow,
+      lockedObj
+    );
+
+    updateTakeoffLandButtons();
+
+    if (!data.active_cam_online) {
+      noSigBanner.style.display = "block";
+      document.getElementById("ns-cam").innerText = `${data.active_camera} (${data.active_cam_status})`;
+    } else {
+      noSigBanner.style.display = "none";
+    }
+
+    const mavInd = document.getElementById("mav-indicator");
+    mavInd.innerText = t.status_msg;
+    mavInd.style.borderColor = t.connected ? "var(--hud-green)" : "var(--hud-amber)";
+
+    const zoomTag = (data.cpdd && data.cpdd.zoom > 1.0) ? ` ${data.cpdd.zoom}X` : "";
+    const camModeText = data.auto_camera ? `AUTO [${data.active_camera}${zoomTag}]` : `${data.active_camera}${zoomTag}`;
+    document.getElementById("cam-indicator").innerText = camModeText;
+
+    if (data.perf) {
+      const fpsEl = document.getElementById("fps-indicator");
+      if (fpsEl) {
+        fpsEl.innerText = `CAM:${data.perf.cam_fps} | OUT:${data.perf.out_fps}fps (${data.perf.infer_ms}ms)`;
+        fpsEl.style.borderColor = data.perf.out_fps < 10 ? "var(--hud-red)" : (data.perf.out_fps < 18 ? "var(--hud-amber)" : "var(--hud-cyan)");
+        fpsEl.style.color = data.perf.out_fps < 10 ? "#ff6b63" : (data.perf.out_fps < 18 ? "var(--hud-amber)" : "var(--hud-cyan)");
+      }
+      const sumEl = document.getElementById("log-perf-summary");
+      if (sumEl) {
+        sumEl.innerText = `${data.perf.device} | ${data.perf.decoder} | ${data.perf.res} | AI:${data.perf.infer_ms}ms`;
+      }
+    }
+
+    if (data.logs && logsVisible) {
+      const logBox = document.getElementById("live-log-lines");
+      if (logBox) {
+        logBox.innerHTML = data.logs.map(line => `<div>${line}</div>`).join("");
+        const drawer = document.getElementById("live-log-drawer");
+        if (drawer) drawer.scrollTop = drawer.scrollHeight;
+      }
+    }
+
+    const bottomModeEl = document.getElementById("bottom-mode-display");
+    if (hudState.engaged) {
+      const engText = `INTERCEPT // TD-${String(data.locked_target_id).padStart(2, "0")}`;
+      if (bottomModeEl) {
+        bottomModeEl.innerText = engText;
+        bottomModeEl.classList.add("engaged");
+      }
+      abortBtn.style.display = "inline-flex";
+    } else {
+      if (bottomModeEl) {
+        bottomModeEl.innerText = `MOD: ${t.mode}`;
+        bottomModeEl.classList.remove("engaged");
+      }
+      abortBtn.style.display = "none";
+    }
+
+    const modeSelectEl = document.getElementById("flight-mode-select");
+    if (modeSelectEl && document.activeElement !== modeSelectEl) {
+      const activeMode = hudState.engaged ? "INTERCEPT" : (t.mode || "STBY");
+      if ([...modeSelectEl.options].some(o => o.value === activeMode)) {
+        modeSelectEl.value = activeMode;
+      }
+    }
+
+    renderTargetPods(data.targets);
+  };
+
+  function toggleTakeoffLand() {
+    if (hudState.inAir) {
+      sendFlightCmd("LAND");
+    } else {
+      document.getElementById("takeoff-alt-input").value = 50;
+      document.getElementById("takeoff-modal").style.display = "flex";
+    }
+  }
+
+  function setTakeoffPreset(meters) {
+    document.getElementById("takeoff-alt-input").value = meters;
+  }
+
+  function closeTakeoffModal() {
+    document.getElementById("takeoff-modal").style.display = "none";
+  }
+
+  async function confirmTakeoff() {
+    const altVal = parseFloat(document.getElementById("takeoff-alt-input").value) || 50.0;
+    closeTakeoffModal();
+    await sendFlightCmd("TAKEOFF", altVal);
+  }
+
+  async function onFlightModeSelect(newMode) {
+    if (!newMode) return;
+    hudState.engaged = false;
+    hudState.lockedTargetId = null;
+    abortBtn.style.display = "none";
+    setTargetMapVisibility(false);
+    await fetch("/api/set_mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: newMode })
+    });
+  }
+
+  async function sendFlightCmd(cmd, alt = 50.0) {
+    if (cmd !== "INTERCEPT") {
+      hudState.engaged = false;
+      hudState.lockedTargetId = null;
+      abortBtn.style.display = "none";
+      setTargetMapVisibility(false);
+    }
+    await fetch("/api/flight_cmd", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cmd: cmd, alt: alt })
+    });
+  }
+
+  const canvas = document.getElementById("hud-canvas");
+  const ctx = canvas.getContext("2d");
+
+  function resizeHudCanvas() {
+    const stage = document.getElementById("camera-stage");
+    canvas.width = stage.clientWidth || window.innerWidth;
+    canvas.height = stage.clientHeight || window.innerHeight;
+  }
+  window.addEventListener("resize", resizeHudCanvas);
+  resizeHudCanvas();
+
+  function lerpAngle(a, b, t) {
+    let diff = ((b - a + 540) % 360) - 180;
+    return (a + diff * t + 360) % 360;
+  }
+
+  function renderFighterJetHUD() {
+    hudState.pitch += (hudState.targetPitch - hudState.pitch) * 0.25;
+    hudState.roll += (hudState.targetRoll - hudState.roll) * 0.25;
+    hudState.yaw = lerpAngle(hudState.yaw, hudState.targetYaw, 0.25);
+    hudState.alt += (hudState.targetAlt - hudState.alt) * 0.25;
+    hudState.speed += (hudState.targetSpeed - hudState.speed) * 0.25;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const cx = W / 2;
+    const cy = H / 2;
+
+    const hudColor = "#39ff5a";
+    ctx.clearRect(0, 0, W, H);
+
+    const isMini = W < 420;
+
+    ctx.save();
+    ctx.globalAlpha = 0.42;
+    ctx.strokeStyle = hudColor;
+    ctx.fillStyle = hudColor;
+    ctx.shadowColor = "rgba(57, 255, 90, 0.25)";
+    ctx.shadowBlur = 2;
+    ctx.lineWidth = 1.1;
+    ctx.font = "bold 11px Consolas, monospace";
+
+    const vfov = Math.max(20.0, hudState.cameraVfovDeg || 60.0);
+    const pxPerDeg = H / vfov;
+    const ladderWidth = isMini ? W * 0.34 : Math.min(180, W * 0.21);
+    const gapHalf = isMini ? 18 : 34;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(cx - ladderWidth - 40, isMini ? 24 : 78, (ladderWidth + 40) * 2, H - (isMini ? 36 : 145));
+    ctx.clip();
+
+    ctx.translate(cx, cy);
+    ctx.rotate((-hudState.roll * Math.PI) / 180);
+    const netHorizonOffsetDeg = hudState.pitch + (hudState.cameraTiltDeg || 0.0);
+    ctx.translate(0, netHorizonOffsetDeg * pxPerDeg);
+
+    const hLen = ladderWidth * 1.2;
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(-hLen, 0);
+    ctx.lineTo(-gapHalf, 0);
+    ctx.moveTo(gapHalf, 0);
+    ctx.lineTo(hLen, 0);
+    ctx.stroke();
+
+    ctx.restore();
+
+    ctx.lineWidth = 1.4;
+    const wScale = isMini ? 0.55 : 0.85;
+    ctx.beginPath();
+    ctx.moveTo(cx - 30 * wScale, cy);
+    ctx.lineTo(cx - 12 * wScale, cy);
+    ctx.lineTo(cx - 6 * wScale, cy + 6 * wScale);
+    ctx.lineTo(cx, cy);
+    ctx.lineTo(cx + 6 * wScale, cy + 6 * wScale);
+    ctx.lineTo(cx + 12 * wScale, cy);
+    ctx.lineTo(cx + 30 * wScale, cy);
+    ctx.stroke();
+
+    if (!isMini) {
+      const bankRadius = Math.min(155, H * 0.27);
+      const bankAngles = [-60, -45, -30, -15, 0, 15, 30, 45, 60];
+      ctx.lineWidth = 1.1;
+
+      bankAngles.forEach(ang => {
+        const rad = ((ang - 90) * Math.PI) / 180;
+        const tickLen = (ang % 30 === 0) ? 9 : 5;
+        const x1 = cx + Math.cos(rad) * bankRadius;
+        const y1 = cy + Math.sin(rad) * bankRadius;
+        const x2 = cx + Math.cos(rad) * (bankRadius + tickLen);
+        const y2 = cy + Math.sin(rad) * (bankRadius + tickLen);
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      });
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate((-hudState.roll * Math.PI) / 180);
+      ctx.beginPath();
+      ctx.moveTo(0, -bankRadius + 2);
+      ctx.lineTo(-5, -bankRadius + 10);
+      ctx.lineTo(5, -bankRadius + 10);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      const tapeW = 54;
+      const tapeH = Math.min(220, H * 0.42);
+      const spdX = Math.max(14, cx - ladderWidth - 95);
+      const tapeTop = cy - tapeH / 2;
+
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.moveTo(spdX + tapeW, tapeTop);
+      ctx.lineTo(spdX + tapeW, tapeTop + tapeH);
+      ctx.stroke();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(spdX - 6, tapeTop, tapeW + 10, tapeH);
+      ctx.clip();
+
+      const spdPxPerUnit = 5.2;
+      const minSpd = Math.floor(hudState.speed - 25);
+      const maxSpd = Math.ceil(hudState.speed + 25);
+
+      ctx.font = "10px Consolas, monospace";
+      ctx.textAlign = "right";
+      for (let s = minSpd; s <= maxSpd; s++) {
+        if (s < 0) continue;
+        const y = cy - (s - hudState.speed) * spdPxPerUnit;
+        if (s % 5 === 0) {
+          ctx.beginPath();
+          ctx.moveTo(spdX + tapeW - 8, y);
+          ctx.lineTo(spdX + tapeW, y);
+          ctx.stroke();
+          ctx.fillText(s.toString(), spdX + tapeW - 11, y + 3);
+        } else if (s % 1 === 0) {
+          ctx.beginPath();
+          ctx.moveTo(spdX + tapeW - 4, y);
+          ctx.lineTo(spdX + tapeW, y);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+
+      ctx.fillStyle = "rgba(3, 10, 5, 0.65)";
+      ctx.fillRect(spdX - 2, cy - 11, tapeW, 22);
+      ctx.strokeRect(spdX - 2, cy - 11, tapeW, 22);
+      ctx.fillStyle = hudColor;
+      ctx.font = "bold 12px Consolas, monospace";
+      ctx.textAlign = "right";
+      ctx.fillText(hudState.speed.toFixed(1), spdX + tapeW - 5, cy + 4);
+
+      ctx.font = "bold 9px Consolas, monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("SPD m/s", spdX, tapeTop - 6);
+      ctx.fillText(`THR ${hudState.throttle}%`, spdX, tapeTop + tapeH + 13);
+      ctx.fillText(`BAT ${hudState.battery_v.toFixed(1)}V`, spdX, tapeTop + tapeH + 25);
+      ctx.fillText(`${hudState.armed ? "ARMED" : "DISARM"}`, spdX, tapeTop + tapeH + 37);
+
+      const altX = Math.min(W - tapeW - 14, cx + ladderWidth + 41);
+
+      ctx.beginPath();
+      ctx.moveTo(altX, tapeTop);
+      ctx.lineTo(altX, tapeTop + tapeH);
+      ctx.stroke();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(altX - 4, tapeTop, tapeW + 18, tapeH);
+      ctx.clip();
+
+      const altPxPerUnit = 3.8;
+      const minAlt = Math.floor(hudState.alt - 35);
+      const maxAlt = Math.ceil(hudState.alt + 35);
+
+      ctx.font = "10px Consolas, monospace";
+      ctx.textAlign = "left";
+      for (let a = minAlt; a <= maxAlt; a++) {
+        const y = cy - (a - hudState.alt) * altPxPerUnit;
+        if (a % 10 === 0) {
+          ctx.beginPath();
+          ctx.moveTo(altX, y);
+          ctx.lineTo(altX + 8, y);
+          ctx.stroke();
+          ctx.fillText(a.toString(), altX + 11, y + 3);
+        } else if (a % 2 === 0) {
+          ctx.beginPath();
+          ctx.moveTo(altX, y);
+          ctx.lineTo(altX + 4, y);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+
+      ctx.fillStyle = "rgba(3, 10, 5, 0.65)";
+      ctx.fillRect(altX + 2, cy - 11, tapeW + 4, 22);
+      ctx.strokeRect(altX + 2, cy - 11, tapeW + 4, 22);
+      ctx.fillStyle = hudColor;
+      ctx.font = "bold 12px Consolas, monospace";
+      ctx.textAlign = "left";
+      ctx.fillText(hudState.alt.toFixed(1), altX + 6, cy + 4);
+
+      ctx.font = "bold 9px Consolas, monospace";
+      ctx.fillText("ALT m", altX, tapeTop - 6);
+      ctx.fillText(`VSI ${hudState.climb >= 0 ? "+" : ""}${hudState.climb.toFixed(1)}`, altX, tapeTop + tapeH + 13);
+      ctx.fillText(`P:${hudState.pitch.toFixed(0)}° R:${hudState.roll.toFixed(0)}°`, altX, tapeTop + tapeH + 25);
+
+      const hdgW = Math.min(280, W * 0.34);
+      const hdgY = 48;
+      const hdgLeft = cx - hdgW / 2;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(hdgLeft, hdgY - 10, hdgW, 32);
+      ctx.clip();
+
+      const pxPerDegHdg = 3.8;
+      const startDeg = Math.floor(hudState.yaw - 40);
+      const endDeg = Math.ceil(hudState.yaw + 40);
+
+      ctx.font = "bold 10px Consolas, monospace";
+      ctx.textAlign = "center";
+
+      const cardinals = { 0: "N", 45: "NE", 90: "E", 135: "SE", 180: "S", 225: "SW", 270: "W", 315: "NW" };
+
+      for (let d = startDeg; d <= endDeg; d++) {
+        const normDeg = ((d % 360) + 360) % 360;
+        const x = cx + (d - hudState.yaw) * pxPerDegHdg;
+
+        if (normDeg % 10 === 0) {
+          ctx.beginPath();
+          ctx.moveTo(x, hdgY + 12);
+          ctx.lineTo(x, hdgY + 19);
+          ctx.stroke();
+
+          const label = cardinals[normDeg] || String(normDeg).padStart(3, "0");
+          ctx.fillText(label, x, hdgY + 9);
+        } else if (normDeg % 5 === 0) {
+          ctx.beginPath();
+          ctx.moveTo(x, hdgY + 15);
+          ctx.lineTo(x, hdgY + 19);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+
+      const hdgInt = Math.round(hudState.yaw) % 360;
+      ctx.fillStyle = "rgba(3, 10, 5, 0.65)";
+      ctx.fillRect(cx - 21, hdgY - 3, 42, 18);
+      ctx.strokeRect(cx - 21, hdgY - 3, 42, 18);
+      ctx.fillStyle = hudColor;
+      ctx.font = "bold 11px Consolas, monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(String(hdgInt).padStart(3, "0") + "°", cx, hdgY + 10);
+    }
+
+    ctx.restore();
+    requestAnimationFrame(renderFighterJetHUD);
+  }
+
+  requestAnimationFrame(renderFighterJetHUD);
+
+  function renderTargetPods(targets) {
+    if (!targets || targets.length === 0) {
+      if (targetsDock.innerHTML !== "") {
+        targetsDock.innerHTML = "";
+        lastTargetsSignature = "";
+      }
+      return;
+    }
+
+    const sig = `${targets.length}#` + targets.map(t => `${t.id}:${t.locked}`).join("|");
+    if (sig !== lastTargetsSignature) {
+      lastTargetsSignature = sig;
+      targetsDock.innerHTML = "";
+      targets.forEach(tgt => {
+        const pod = document.createElement("div");
+        pod.className = "target-pod" + (tgt.locked ? " locked" : "");
+        pod.dataset.targetId = tgt.id;
+
+        const idStr = String(tgt.id).padStart(2, "0");
+        pod.innerHTML = `
+          <img id="pod-img-${tgt.id}" src="data:image/jpeg;base64,${tgt.thumbnail}" alt="TD-${idStr}">
+          <div class="pod-meta">
+            <span>TD-${idStr} <span style="color:var(--hud-cyan);font-size:9px;">[${tgt.cls_label || "TGT"}]</span></span>
+            <span id="pod-conf-${tgt.id}">~${Math.round(tgt.est_dist_m || 0)}m</span>
+          </div>
+          <div class="pod-action">${tgt.locked ? (targets.length === 1 ? "KİLİTLİ [İPTAL]" : "KİLİTLİ") : "ANGAJMAN"}</div>
+        `;
+        targetsDock.appendChild(pod);
+      });
+    } else {
+      targets.forEach(tgt => {
+        const imgEl = document.getElementById(`pod-img-${tgt.id}`);
+        if (imgEl && tgt.thumbnail) {
+          imgEl.src = `data:image/jpeg;base64,${tgt.thumbnail}`;
+        }
+        const confEl = document.getElementById(`pod-conf-${tgt.id}`);
+        if (confEl) {
+          confEl.innerText = `~${Math.round(tgt.est_dist_m || 0)}m`;
+        }
+      });
+    }
+  }
+
+  targetsDock.addEventListener("pointerdown", (e) => {
+    const pod = e.target.closest(".target-pod");
+    if (!pod) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const targetId = parseInt(pod.dataset.targetId, 10);
+    if (isNaN(targetId)) return;
+
+    const totalPods = targetsDock.querySelectorAll(".target-pod").length;
+    const isPodLocked = pod.classList.contains("locked") || (hudState.engaged && hudState.lockedTargetId === targetId);
+
+    if (totalPods === 1 && isPodLocked) {
+      abortEngagement();
+      return;
+    }
+
+    lockTarget(targetId);
+  });
+
+  async function lockTarget(targetId) {
+    hudState.engaged = true;
+    hudState.lockedTargetId = targetId;
+    abortBtn.style.display = "inline-flex";
+
+    await fetch("/api/lock", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_id: targetId })
+    });
+  }
+
+  async function abortEngagement() {
+    hudState.engaged = false;
+    hudState.lockedTargetId = null;
+    abortBtn.style.display = "none";
+    setTargetMapVisibility(false);
+    await fetch("/api/abort", { method: "POST" });
+  }
+
+  async function sendCpddRawText() {
+    const cmd = document.getElementById("cfg-cpdd-text-cmd").value.trim();
+    const out = document.getElementById("cpdd-raw-reply");
+    if (!cmd) return;
+    out.innerText = "Gönderiliyor...";
+    const res = await fetch("/api/cpdd/raw", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "TEXT", text_cmd: cmd })
+    });
+    const d = await res.json();
+    out.style.color = "var(--hud-green)";
+    out.innerText = "Yanıt: " + (d.reply || "OK");
+  }
+
+  async function sendCpddRawHex() {
+    const tb = document.getElementById("cfg-cpdd-hex-b").value.trim();
+    const tcd = document.getElementById("cfg-cpdd-hex-cd").value.trim();
+    const out = document.getElementById("cpdd-raw-reply");
+    const res = await fetch("/api/cpdd/raw", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "HEX", type_b: tb, type_cd: tcd })
+    });
+    const d = await res.json();
+    out.style.color = "var(--hud-cyan)";
+    out.innerText = d.reply || "HEX gönderildi";
+  }
+
+  async function sendCpddCmd(action) {
+    await fetch("/api/cpdd/cmd", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: action })
+    });
+  }
+
+  function onCpddIpInput() {
+    const ipVal = document.getElementById("cfg-cpdd-ip").value.trim();
+    const rtspInput = document.getElementById("cfg-cpdd-rtsp");
+    if (ipVal && rtspInput) {
+      rtspInput.value = `rtsp://${ipVal}/live/0`;
+    }
+  }
+
+  async function setCamera(mode) {
+    document.querySelectorAll(".sensor-group .tac-btn").forEach(b => b.classList.remove("active"));
+    const activeBtn = document.getElementById(`btn-${mode}`);
+    if (activeBtn) activeBtn.classList.add("active");
+
+    await fetch("/api/camera", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: mode })
+    });
+  }
+
+  function onTestTypeChange() {
+    const tType = document.getElementById("cfg-test-type").value;
+    const boxDataset = document.getElementById("box-dataset-select");
+    const boxCustom = document.getElementById("box-custom-source");
+    const btnScan = document.getElementById("btn-scan-cam");
+    const lblCustom = document.getElementById("lbl-custom-source");
+    const inpCustom = document.getElementById("cfg-cam-webcam");
+
+    if (tType === "DATASET") {
+      boxDataset.style.display = "flex";
+      boxCustom.style.display = "none";
+    } else if (tType === "WEBCAM") {
+      boxDataset.style.display = "none";
+      boxCustom.style.display = "flex";
+      btnScan.style.display = "inline-flex";
+      lblCustom.innerText = "Kamera İndeksi";
+      if (!/^\d+$/.test(inpCustom.value.trim())) inpCustom.value = "0";
+    } else {
+      boxDataset.style.display = "none";
+      boxCustom.style.display = "flex";
+      btnScan.style.display = "none";
+      lblCustom.innerText = "Video Yolu (.mp4)";
+      if (inpCustom.value.startsWith("dataset:") || /^\d+$/.test(inpCustom.value.trim())) {
+        inpCustom.value = "";
+      }
+    }
+  }
+
+  async function populateDatasetDropdown(selectedFolder) {
+    const sel = document.getElementById("cfg-dataset-folder");
+    sel.innerHTML = "";
+
+    let folderMeta = {};
+    try {
+      const res = await fetch("/api/dataset_folders");
+      const data = await res.json();
+      if (data.folders) {
+        data.folders.forEach(f => { folderMeta[f.name] = f; });
+      }
+    } catch (e) {}
+
+    for (let i = 1; i <= 20; i++) {
+      const fname = `video${String(i).padStart(2, "0")}`;
+      const opt = document.createElement("option");
+      opt.value = fname;
+      const meta = folderMeta[fname];
+      if (meta && meta.exists) {
+        opt.text = `${fname} (${meta.count} kare)`;
+      } else {
+        opt.text = `${fname} (Yok)`;
+      }
+      sel.appendChild(opt);
+    }
+
+    sel.value = selectedFolder || "video01";
+  }
+
+  async function scanWebcams() {
+    try {
+      const res = await fetch("/api/scan_webcams");
+      const data = await res.json();
+      if (data.webcams && data.webcams.length > 0) {
+        document.getElementById("cfg-cam-webcam").value = data.webcams[0];
+      }
+    } catch (e) {}
+  }
+
+  function onProtocolChange() {
+    const proto = document.getElementById("cfg-tel-proto").value;
+    const hostInput = document.getElementById("cfg-tel-host");
+    const portInput = document.getElementById("cfg-tel-port");
+    const lblHost = document.getElementById("lbl-tel-host");
+
+    if (proto === "SITL") {
+      lblHost.innerText = "Simülasyon";
+      hostInput.value = "DAHİLİ SITL";
+      hostInput.disabled = true;
+      portInput.disabled = true;
+    } else if (proto === "TCP") {
+      hostInput.disabled = false;
+      portInput.disabled = false;
+      lblHost.innerText = "Hedef IP";
+      if (hostInput.value === "0.0.0.0" || hostInput.value === "DAHİLİ SITL") hostInput.value = "127.0.0.1";
+      if (portInput.value === "14550") portInput.value = "5760";
+    } else if (proto === "TCPIN") {
+      hostInput.disabled = false;
+      portInput.disabled = false;
+      lblHost.innerText = "Dinleme IP";
+      if (hostInput.value === "127.0.0.1" || hostInput.value === "DAHİLİ SITL") hostInput.value = "0.0.0.0";
+    } else {
+      hostInput.disabled = false;
+      portInput.disabled = false;
+      lblHost.innerText = "Dinleme IP";
+      if (hostInput.value === "127.0.0.1" || hostInput.value === "DAHİLİ SITL") hostInput.value = "0.0.0.0";
+      if (portInput.value === "5760") portInput.value = "14550";
+    }
+  }
+
+  async function openSettings() {
+    document.getElementById("test-report").style.display = "none";
+    const res = await fetch("/api/settings");
+    const s = await res.json();
+
+    document.getElementById("cfg-tel-proto").value = s.telemetry_protocol || "SITL";
+    document.getElementById("cfg-tel-host").value = s.telemetry_host || "127.0.0.1";
+    document.getElementById("cfg-tel-port").value = s.telemetry_port || 5760;
+    onProtocolChange();
+    if ((s.telemetry_protocol || "SITL") !== "SITL") {
+      document.getElementById("cfg-tel-host").value = s.telemetry_host || "0.0.0.0";
+      document.getElementById("cfg-tel-port").value = s.telemetry_port || 14550;
+    }
+
+    document.getElementById("cfg-cpdd-ip").value = s.cpdd_ip || "192.168.144.108";
+    document.getElementById("cfg-cpdd-udp-port").value = s.cpdd_udp_port || 9554;
+    document.getElementById("cfg-cpdd-local-port").value = s.cpdd_local_port || 7002;
+    document.getElementById("cfg-cpdd-rtsp").value = s.cpdd_rtsp_url || "rtsp://192.168.144.108/live/0";
+
+    document.getElementById("cfg-bing-key").value = s.bing_maps_key || "";
+    document.getElementById("cfg-cam-tilt").value = s.camera_tilt_deg !== undefined ? s.camera_tilt_deg : 30;
+    document.getElementById("cfg-cam-vfov").value = s.camera_vfov_deg !== undefined ? s.camera_vfov_deg : 60;
+    document.getElementById("cfg-video-base").value = s.video_base_dir || "video";
+
+    const rawTestUrl = s.cameras?.WEBCAM?.url || "dataset:video01";
+    let selectedDataset = "video01";
+
+    if (rawTestUrl.startsWith("dataset:") || /^video\d{1,2}$/i.test(rawTestUrl)) {
+      document.getElementById("cfg-test-type").value = "DATASET";
+      selectedDataset = rawTestUrl.includes(":") ? rawTestUrl.split(":")[1] : rawTestUrl;
+    } else if (/^\d+$/.test(rawTestUrl.trim())) {
+      document.getElementById("cfg-test-type").value = "WEBCAM";
+      document.getElementById("cfg-cam-webcam").value = rawTestUrl.trim();
+    } else {
+      document.getElementById("cfg-test-type").value = "CUSTOM";
+      document.getElementById("cfg-cam-webcam").value = rawTestUrl;
+    }
+
+    await populateDatasetDropdown(selectedDataset);
+    onTestTypeChange();
+
+    document.getElementById("cfg-model").value = s.yolo_model || "yolov8n.pt";
+    document.getElementById("cfg-conf").value = s.confidence_threshold || 0.45;
+    document.getElementById("cfg-classes").value = s.target_classes || "0, 2, 3, 4, 5, 7, 14";
+    document.getElementById("cfg-thrust").value = s.intercept_thrust_max || 1.0;
+    document.getElementById("cfg-yaw-gain").value = s.yaw_rate_gain || 1.8;
+    document.getElementById("cfg-pitch-gain").value = s.pitch_rate_gain || 1.5;
+
+    document.getElementById("settings-modal").style.display = "flex";
+  }
+
+  function closeSettings() {
+    document.getElementById("settings-modal").style.display = "none";
+  }
+
+  async function saveAndTest() {
+    const btn = document.getElementById("btn-save-test");
+    const report = document.getElementById("test-report");
+    btn.innerText = "TEST EDİLİYOR...";
+    btn.disabled = true;
+
+    const protoVal = document.getElementById("cfg-tel-proto").value;
+    let hostVal = document.getElementById("cfg-tel-host").value.trim();
+    if (protoVal === "SITL" || hostVal === "DAHİLİ SITL" || !hostVal) {
+      hostVal = "127.0.0.1";
+    }
+
+    const tType = document.getElementById("cfg-test-type").value;
+    let testSourceUrl = "";
+    if (tType === "DATASET") {
+      testSourceUrl = "dataset:" + document.getElementById("cfg-dataset-folder").value;
+    } else {
+      testSourceUrl = document.getElementById("cfg-cam-webcam").value.trim();
+    }
+
+    const newBingKey = document.getElementById("cfg-bing-key").value.trim();
+    const newCamTilt = parseFloat(document.getElementById("cfg-cam-tilt").value);
+    const newCamVfov = parseFloat(document.getElementById("cfg-cam-vfov").value);
+    const cpddIp = document.getElementById("cfg-cpdd-ip").value.trim() || "192.168.144.108";
+    const cpddUdpPort = parseInt(document.getElementById("cfg-cpdd-udp-port").value) || 9554;
+    const cpddLocalPort = parseInt(document.getElementById("cfg-cpdd-local-port").value) || 7002;
+    const cpddRtspUrl = document.getElementById("cfg-cpdd-rtsp").value.trim() || `rtsp://${cpddIp}/live/0`;
+
+    hudState.cameraTiltDeg = isNaN(newCamTilt) ? 30.0 : newCamTilt;
+    hudState.cameraVfovDeg = isNaN(newCamVfov) ? 60.0 : newCamVfov;
+    await applyBingLayer(newBingKey);
+
+    const payload = {
+      telemetry_protocol: protoVal,
+      telemetry_host: hostVal,
+      telemetry_port: parseInt(document.getElementById("cfg-tel-port").value) || 14550,
+      bing_maps_key: newBingKey,
+      camera_tilt_deg: hudState.cameraTiltDeg,
+      camera_vfov_deg: hudState.cameraVfovDeg,
+      cpdd_ip: cpddIp,
+      cpdd_udp_port: cpddUdpPort,
+      cpdd_local_port: cpddLocalPort,
+      cpdd_rtsp_url: cpddRtspUrl,
+
+      video_base_dir: document.getElementById("cfg-video-base").value.trim() || "video",
+      cameras: {
+        WIDE: { name: "EO-WIDE (GENIS)", url: cpddRtspUrl },
+        NARROW: { name: "EO-NARROW (DAR/ZOOM)", url: cpddRtspUrl },
+        THERMAL: { name: "IR-THERMAL (TERMAL)", url: cpddRtspUrl },
+        WEBCAM: { name: "DATASET / WEBCAM (TEST)", url: testSourceUrl }
+      },
+      yolo_model: document.getElementById("cfg-model").value.trim(),
+      confidence_threshold: parseFloat(document.getElementById("cfg-conf").value) || 0.45,
+      target_classes: document.getElementById("cfg-classes").value.trim(),
+      intercept_thrust_max: parseFloat(document.getElementById("cfg-thrust").value) || 1.0,
+      yaw_rate_gain: parseFloat(document.getElementById("cfg-yaw-gain").value) || 1.8,
+      pitch_rate_gain: parseFloat(document.getElementById("cfg-pitch-gain").value) || 1.5
+    };
+
+    try {
+      const res = await fetch("/api/settings/save_and_test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+
+      if (tType === "DATASET") {
+        await populateDatasetDropdown(document.getElementById("cfg-dataset-folder").value);
+      }
+
+      const c = data.vision.cameras;
+      const mavBadge = data.mavlink.ok
+        ? '<span style="color:var(--hud-green)">[BAĞLI]</span>'
+        : '<span style="color:var(--hud-red)">[HATA]</span>';
+
+      report.style.display = "block";
+      const cpddUdpBadge = data.vision.cpdd_udp?.ok
+        ? '<span style="color:var(--hud-green)">[HAZIR]</span>'
+        : '<span style="color:var(--hud-amber)">[UYARI]</span>';
+
+      report.innerHTML = `
+        <div><b>TELEMETRİ:</b> ${mavBadge} ${data.mavlink.msg}</div>
+        <div><b>CPDD075 SDK UDP:</b> ${cpddUdpBadge} ${data.vision.cpdd_udp?.msg || ""}</div>
+        <div><b>YAPAY ZEKA:</b> ${data.vision.model_ready ? '<span style="color:var(--hud-green)">[HAZIR]</span>' : '<span style="color:var(--hud-red)">[HATA]</span>'} ${data.vision.model_status}</div>
+        <div><b>VİDEO AKIŞLARI:</b> TEKİL RTSP [${c.MAIN_RTSP.status}] (${c.MAIN_RTSP.error || c.MAIN_RTSP.url}) | TEST [${c.WEBCAM.status}]</div>
+      `;
+    } catch (err) {
+      report.style.display = "block";
+      report.innerHTML = `<span style="color:var(--hud-red);">[ERR] ${err}</span>`;
+    } finally {
+      btn.innerText = "KAYDET VE TEST ET";
+      btn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>
