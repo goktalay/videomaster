@@ -18,21 +18,29 @@ const isMulticast = (h) => {
 // Boş bir UDP portu; pair: RTP için çift numaralı port ve bir üstü (RTCP) birlikte boş olmalı.
 // ffmpeg girişte "tüm adresler"e bağlandığı için yoklama da öyle yapılır: Windows'ta 127.0.0.1'e bağlanmak,
 // portu 0.0.0.0 üzerinde tutan başka bir süreç varken de başarılı olur ve port yanlışlıkla boş görünür.
+const reserved = new Set();
 function freeUdpPort({ pair = false } = {}) {
   const probe = (port) => new Promise((resolve) => {
     const sock = dgram.createSocket('udp4');
     sock.once('error', () => { try { sock.close(); } catch { /* kapalı */ } resolve(null); });
     sock.bind({ port, exclusive: true }, () => { const got = sock.address().port; sock.close(() => resolve(got)); });
   });
+  // Yoklama soketi kapandığı için işletim sistemi aynı portu hemen yeniden verebilir (Windows'ta sık görülür);
+  // verilen portlar, asıl sahibi bağlanana dek bir süre ayrılmış sayılır.
+  const take = (...ports) => {
+    if (ports.some((p) => reserved.has(p))) return false;
+    for (const p of ports) { reserved.add(p); const t = setTimeout(() => reserved.delete(p), 120000); if (t.unref) t.unref(); }
+    return true;
+  };
   return (async () => {
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 200; i++) {
       const port = await probe(0);
       if (!port) continue;
-      if (!pair) return port;
+      if (!pair) { if (take(port)) return port; continue; }
       const even = port % 2 ? port + 1 : port;
-      if (even > 65534) continue;
+      if (even > 65534 || reserved.has(even) || reserved.has(even + 1)) continue;
       if (even !== port && !(await probe(even))) continue;
-      if (await probe(even + 1)) return even;
+      if ((await probe(even + 1)) && take(even, even + 1)) return even;
     }
     throw Object.assign(new Error('boş UDP portu bulunamadı'), { code: 'EADDRINUSE' });
   })();
