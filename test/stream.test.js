@@ -53,7 +53,7 @@ test('Ham RTP (H.264 + PCMU): SDP üretimi, RTP istatistikleri, pencere profilin
     await s.start('full');
     await waitFor(() => frames >= 5 && audio > 48000, 30000, 'RTP kareleri ve ses').catch((e) => {
       // hata nedeni görünsün: oturum durumu, ffmpeg günlüğünün sonu, alınan paketler
-      const tail = s.viewer ? s.viewer.parser.tail.slice(-12) : [];
+      const tail = [...(s.lastLog || []), '##', ...(s.viewer ? s.viewer.parser.tail.slice(-12) : []), '## SDP:', s.input && s.input.view.sdpFile ? fs.readFileSync(s.input.view.sdpFile, 'utf8').replace(/\r?\n/g, ' / ') : ''];
       e.message += ` | durum=${s.state} hata=${JSON.stringify(s.error)} kare=${frames} ses=${audio} paket=${s.tap ? s.tap.counters.packetsIn : -1} deneme=${s.attempts} | ${s.command} | ${tail.join(' ⏎ ')} | kaynak: ${src.err().slice(-400)}`;
       throw e;
     });

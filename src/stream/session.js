@@ -291,6 +291,7 @@ class StreamSession extends EventEmitter {
       if (v.onExit) v.onExit();
       if (this.gen !== gen) return;
       this.viewer = null;
+      this.lastLog = v.parser.tail.slice(-15); // son ffmpeg çıktısı (tanılama için)
       if (v.restarting) return void this._spawnViewer();
       if (v.killed && !v.failure) return;
       if (!this.running) return;
