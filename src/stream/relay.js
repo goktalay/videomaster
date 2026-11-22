@@ -71,8 +71,12 @@ class UdpRelay {
     return new Promise((resolve, reject) => {
       const sock = dgram.createSocket({ type: v6 ? 'udp6' : 'udp4', reuseAddr: true });
       this.sock = sock;
+      // Gönderim soketi hemen bir porta bağlanır. İlk pakete bırakılırsa işletim sistemi ona, az önce yoklanıp
+      // ffmpeg için ayrılan portu verebilir (Windows serbest kalan portu hemen yeniden dağıtır) ve ffmpeg bağlanamaz.
       this.out = dgram.createSocket('udp4');
       this.out.on('error', () => {});
+      const outReady = new Promise((ok) => { this.out.once('listening', ok); this.out.once('error', ok); });
+      this.out.bind({ port: 0, address: '127.0.0.1', exclusive: true });
       let bound = false;
       sock.on('error', (e) => {
         if (!bound) { this.close(); reject(e); } else if (this.opts.onError) this.opts.onError(e);
@@ -93,7 +97,8 @@ class UdpRelay {
             else sock.addMembership(host, localAddr || undefined);
           } catch (e) { this.close(); return reject(e); }
         }
-        resolve(sock.address().port);
+        const port = sock.address().port;
+        outReady.then(() => resolve(port));
       };
       let fellBack = false;
       sock.removeAllListeners('error');
