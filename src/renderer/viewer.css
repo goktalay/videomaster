@@ -191,3 +191,49 @@
 .vw-video.picking, .vw-video.picking canvas { cursor: crosshair; }
 .pick-mark { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border: 2px solid var(--accent); border-radius: 50%; pointer-events: none; animation: pick .9s ease-out forwards; }
 @keyframes pick { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
+
+.cam-in:has(.num-slider) { min-width: 100%; }
+.cam-in .num-slider > .unit-wrap, .cam-in .num-slider > input[type=number] { width: 92px; }
+
+/* --- Yapay görü --- */
+#visionCanvas { pointer-events: none; }
+.panel-tabs button { padding: 6px 6px; min-width: 0; }
+.vis { display: grid; gap: 8px; }
+.vis-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vis-mods { display: grid; gap: 6px; padding: 2px 10px 12px; }
+.vis-mod { display: flex; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; border-inline-start: 3px solid var(--border); background: var(--surface); }
+.vis-mod.on { border-inline-start-color: var(--mc); }
+.vis-mod-main { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.vis-mod-name { display: flex; align-items: center; gap: 7px; font-size: 12.5px; }
+.vis-mod-name svg.i { width: 14px; height: 14px; color: var(--mc); }
+.vis-count { margin-inline-start: auto; font-weight: 700; color: var(--mc); font-variant-numeric: tabular-nums; }
+.vis-switch { position: relative; flex: none; width: 34px; height: 20px; margin-top: 1px; cursor: pointer; }
+.vis-switch input { position: absolute; opacity: 0; inset: 0; cursor: pointer; margin: 0; }
+.vis-switch i { position: absolute; inset: 0; border-radius: 10px; background: var(--surface-3); border: 1px solid var(--border-strong); transition: background .15s; }
+.vis-switch i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--text-2); transition: transform .15s; }
+.vis-switch input:checked + i { background: var(--mc, var(--accent)); border-color: transparent; }
+.vis-switch input:checked + i::after { transform: translateX(14px); background: #fff; }
+.vis-switch input:disabled + i { opacity: .45; }
+.vis-need { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vis-need:empty { display: none; }
+.vis-need .warn, .vis .warn { color: var(--warn); font-size: 11.5px; }
+.vis-sens { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-3); }
+.vis-sens .num-slider > .unit-wrap { width: 78px; }
+.vis-sens .unit-wrap .input { padding-inline-end: 26px; height: 30px; }
+.vis-sens .unit-wrap span { top: 7px; inset-inline-end: 9px; }
+.vis-bar { flex: 1; min-width: 80px; height: 5px; border-radius: 3px; background: var(--surface-3); overflow: hidden; margin: 4px 0; }
+.vis-bar i { display: block; height: 100%; background: var(--accent); transition: width .2s; }
+.vis-res { display: grid; gap: 6px; padding: 2px 12px 12px; }
+.vis-res-row { display: grid; gap: 4px; padding-inline-start: 8px; border-inline-start: 3px solid var(--mc); font-size: 12px; }
+.vis-res-row > div { display: flex; flex-wrap: wrap; gap: 4px; }
+.vis-tag, .vis-text { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border); font-size: 11.5px; color: var(--text-2); }
+.vis-tag i, .vis-text i { font-style: normal; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.vis-text { font-family: var(--mono); color: var(--text); cursor: pointer; user-select: text; }
+.vis-text:hover { border-color: var(--accent); }
+.vis-set { display: grid; gap: 10px; padding: 4px 12px 12px; }
+.vis-models { display: grid; gap: 8px; padding: 4px 12px 12px; }
+.vis-model { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.vis-model > div:first-child { flex: 1; min-width: 0; display: grid; gap: 2px; font-size: 12.5px; }
+.vis-model small { color: var(--text-3); font-size: 11px; }
+.vis-model-btns { display: flex; align-items: center; gap: 4px; flex: none; }
+.vis-dir { word-break: break-all; user-select: text; }

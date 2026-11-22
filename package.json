@@ -12,7 +12,9 @@
     "icon": "node scripts/make-icon.js",
     "screenshots": "node scripts/screenshots.js",
     "dist": "electron-builder --win",
-    "dist:portable": "electron-builder --win portable"
+    "dist:portable": "electron-builder --win portable",
+    "vendor": "node scripts/vendor.js",
+    "postinstall": "node scripts/vendor.js"
   },
   "dependencies": {
     "@napi-rs/keyring": "^2.1.1",
@@ -22,7 +24,8 @@
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
     "png-to-ico": "^2.1.8",
-    "sharp": "^0.33.5"
+    "sharp": "^0.33.5",
+    "onnxruntime-web": "^1.20.1"
   },
   "build": {
     "appId": "com.videomaster.app",

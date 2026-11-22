@@ -197,6 +197,8 @@ function buildCamPanel(opts) {
     groups.appendChild(d);
   }
 
+  enhanceNumbers(el);
+
   // --- Bağlantı durumu ---
   q('[data-conn]').onclick = async () => {
     const b = q('[data-conn]');

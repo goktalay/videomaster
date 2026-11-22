@@ -80,6 +80,23 @@ contextBridge.exposeInMainWorld('api', {
   tapClear: (id) => ipcRenderer.invoke('tap:clear', id),
   tapSave: (id, base, length) => ipcRenderer.invoke('tap:save', { id, base, length }),
 
+  // yapay görü
+  visionModels: () => ipcRenderer.invoke('vision:models'),
+  visionDownload: (id) => ipcRenderer.invoke('vision:download', id),
+  visionCancel: (id) => ipcRenderer.invoke('vision:cancel', id),
+  visionRemove: (id) => ipcRenderer.invoke('vision:remove', id),
+  visionRead: (id) => ipcRenderer.invoke('vision:read', id),
+  visionAddModel: (input) => ipcRenderer.invoke('vision:addModel', input),
+  visionRemoveModel: (id) => ipcRenderer.invoke('vision:removeModel', id),
+  visionPickModel: () => ipcRenderer.invoke('vision:pickModel'),
+  visionOpenDir: () => ipcRenderer.invoke('vision:openDir'),
+  visionRuntime: () => ipcRenderer.invoke('vision:runtime'),
+  visionSet: (id, vision) => ipcRenderer.invoke('vision:set', { id, vision }),
+  visionExport: (id) => ipcRenderer.invoke('vision:export', id),
+  visionImport: (id) => ipcRenderer.invoke('vision:import', id),
+  onVisionProgress: on('vision:progress'),
+  onVisionModels: on('vision:models'),
+
   // kamera kontrolü (modele özel)
   camConnect: (id) => ipcRenderer.invoke('cam:connect', id),
   camDisconnect: (id) => ipcRenderer.invoke('cam:disconnect', id),

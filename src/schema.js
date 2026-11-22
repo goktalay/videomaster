@@ -35,6 +35,8 @@
   const MODELS = (typeof module !== 'undefined' && module.exports) ? require('./models/defs') : (root.CAMERA_MODEL_LIST || Object.values(root.CAMERA_MODELS || {}));
   const MODEL_BY_ID = Object.fromEntries(MODELS.map((m) => [m.id, m]));
   const MODEL_PROTOCOLS = ['rtsp'];
+  // Yapay görü ayarları (src/vision): bağlantıyla birlikte saklanır ve senkronlanır
+  const VISION = (typeof module !== 'undefined' && module.exports) ? require('./vision/catalog') : root.VISION;
 
   const P = (...ids) => ids; // okunabilirlik
   const NET = P('rtsp', 'rtp', 'udp', 'srt', 'rtmp', 'http', 'tcp', 'sdp', 'custom');
@@ -160,7 +162,7 @@
 
   const FIELD_BY_KEY = Object.fromEntries(FIELDS.map((f) => [f.key, f]));
   // Senkronlanan bağlantı alanları (şifre dahil; kütüphane uçtan uca şifrelidir)
-  const CONNECTION_KEYS = ['name', 'protocol', 'folderId', 'color', 'createdAt', ...FIELDS.map((f) => f.key)];
+  const CONNECTION_KEYS = ['name', 'protocol', 'folderId', 'color', 'createdAt', 'vision', ...FIELDS.map((f) => f.key)];
 
   function defaults(protocol) {
     const p = PROTOCOLS[protocol] ? protocol : 'rtsp';
@@ -194,6 +196,7 @@
     }
     for (const k of ['host', 'path', 'username', 'url', 'localAddr', 'sources', 'srtStreamId']) c[k] = c[k].trim();
     if (!MODEL_PROTOCOLS.includes(c.protocol)) c.model = 'generic';
+    c.vision = VISION.normalizeVision(src.vision);
     if (c.path && !c.path.startsWith('/') && c.protocol !== 'custom') c.path = '/' + c.path;
     if (!PROTOCOLS[c.protocol].secureScheme) c.secure = false;
     return c;

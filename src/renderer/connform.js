@@ -86,6 +86,7 @@ function buildConnForm(initial, opts = {}) {
       const eye = node.querySelector('[data-eye]');
       if (eye) eye.onclick = () => { const i = node.querySelector('input'); i.type = i.type === 'password' ? 'text' : 'password'; eye.innerHTML = icon(i.type === 'password' ? 'eye' : 'eyeOff'); };
     }
+    enhanceNumbers(node);
     if (f.key === 'sdpText') {
       const b = h(`<button class="btn sm" type="button" style="justify-self:start">${icon('file')}${esc(t('cf.loadSdp'))}</button>`);
       b.onclick = async () => { const txt = await window.api.pickSdp(); if (txt) { node.querySelector('textarea').value = txt; sync(); } };

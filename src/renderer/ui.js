@@ -246,3 +246,30 @@ function streamError(err) {
   const base = tOpt(`err.${err.code}`, t('err.ffmpeg'));
   return err.detail && ['ffmpeg', 'error', 'bad_data', 'unsupported', 'io', 'tls'].includes(err.code) ? `${base} ${err.detail}`.trim() : base;
 }
+
+// Alt ve üst sınırı bilinen her sayısal alan kaydırıcıyla da değiştirilebilir: [kaydırıcı][sayı kutusu].
+// Kutunun değeri kodla değişince (form.write) kaydırıcı da güncellenir.
+function enhanceNumbers(root) {
+  const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  for (const num of root.querySelectorAll('input[type="number"][min][max]')) {
+    if (num.dataset.slider || num.min === '' || num.max === '' || !(Number(num.max) > Number(num.min))) continue;
+    num.dataset.slider = '1';
+    const box = num.closest('.unit-wrap') || num;
+    const wrap = document.createElement('div');
+    wrap.className = 'num-slider';
+    const range = document.createElement('input');
+    range.type = 'range';
+    range.min = num.min; range.max = num.max; range.step = num.step || '1';
+    range.tabIndex = -1;
+    box.replaceWith(wrap);
+    wrap.append(range, box);
+    const pull = () => { range.value = num.value === '' ? range.min : desc.get.call(num); };
+    pull();
+    Object.defineProperty(num, 'value', { configurable: true, get() { return desc.get.call(this); }, set(v) { desc.set.call(this, v); pull(); } });
+    num.addEventListener('input', pull);
+    num.addEventListener('change', pull);
+    const push = (type) => (e) => { e.stopPropagation(); desc.set.call(num, range.value); num.dispatchEvent(new Event(type, { bubbles: true })); };
+    range.addEventListener('input', push('input'));
+    range.addEventListener('change', push('change'));
+  }
+}

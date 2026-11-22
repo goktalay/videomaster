@@ -11,6 +11,8 @@ const { createAccount, apiBase, APP_CODE } = require('./account');
 const { createSso } = require('./sso');
 const { StreamSession } = require('./stream/session');
 const CAMERAS = require('./models');
+const VISION = require('./vision/catalog');
+const { createModels } = require('./vision/models');
 
 // Arayüz dili: ayarlarda seçilen ya da sistem dili (desteklenmiyorsa İngilizce)
 let t = I18N.createT('en');
@@ -20,6 +22,8 @@ function applyLanguage() { t = I18N.createT(currentLang()); }
 const APP_NAME = 'Video Master';
 // Ses, kullanıcı tıklaması beklenmeden başlayabilsin (akış penceresi açılınca oynatılır)
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+// Yapay görü (WASM) birden çok iş parçacığı kullanabilsin
+app.commandLine.appendSwitch('enable-features', 'SharedArrayBuffer');
 const ICON = path.join(__dirname, '..', 'build', 'icon.png');
 const userDir = (...p) => path.join(app.getPath('userData'), ...p);
 
@@ -644,6 +648,7 @@ function saveConnection(form) {
   const bad = SCHEMA.validate(c);
   if (bad.length) return { ok: false, invalid: bad };
   const id = prev ? prev.id : uid();
+  c.vision = prev ? prev.vision : VISION.normalizeVision(form.vision);
   const next = lockConn({ ...c, id, createdAt: prev ? prev.createdAt : Date.now(), folderId: form.folderId ?? (prev ? prev.folderId : null) ?? null });
   if (prev) store.connections[store.connections.indexOf(prev)] = next; else store.connections.push(next);
   saveStore();
@@ -767,7 +772,7 @@ ipcMain.handle('folder:delete', (_e, id) => {
 });
 
 // Görünüm ayarları (panel boyutları vb.) sessizce kaydedilir, yayınlanmaz ve senkronlanmaz
-const QUIET_SETTINGS = ['panelTab', 'panelOpen', 'panelWidth', 'bottomOpen', 'bottomHeight', 'infoWidth', 'chartRange', 'cardSize', 'openAtLogin', 'minimizeToTray', 'closeToTray', 'trayHintShown', 'recordDir'];
+const QUIET_SETTINGS = ['visionModels', 'panelTab', 'panelOpen', 'panelWidth', 'bottomOpen', 'bottomHeight', 'infoWidth', 'chartRange', 'cardSize', 'openAtLogin', 'minimizeToTray', 'closeToTray', 'trayHintShown', 'recordDir'];
 
 ipcMain.handle('settings:set', (_e, patch) => {
   Object.assign(store.settings, patch);
@@ -899,6 +904,86 @@ ipcMain.handle('tap:save', async (event, { id, base, length }) => {
   const { data } = length ? tap.read(base, base + length) : tap.snapshot();
   await fs.promises.writeFile(res.filePath, data);
   return res.filePath;
+});
+
+// ---------------------------------------------------------------------------
+// Yapay görü: modeller (indirme, kullanıcı modelleri), kameraya özel ayarlar, ayar dosyası
+// ---------------------------------------------------------------------------
+// Modeller klasörü: taşınabilir sürümde exe'nin yanı; kurulu sürümde program klasörü yazılabiliyorsa orası, değilse veri klasörü
+let modelsDirCache = null;
+function modelsDir() {
+  if (process.env.VDM_MODELS) return process.env.VDM_MODELS;
+  if (modelsDirCache) return modelsDirCache;
+  const candidates = [];
+  if (process.env.PORTABLE_EXECUTABLE_DIR) candidates.push(path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'VideoMaster-models'));
+  if (app.isPackaged) candidates.push(path.join(path.dirname(process.execPath), 'models'));
+  candidates.push(userDir('models'));
+  for (const d of candidates) {
+    try { fs.mkdirSync(d, { recursive: true }); fs.accessSync(d, fs.constants.W_OK); const probe = path.join(d, '.w'); fs.writeFileSync(probe, ''); fs.rmSync(probe); modelsDirCache = d; return d; } catch { /* yazılamıyor: sıradaki */ }
+  }
+  modelsDirCache = userDir('models');
+  return modelsDirCache;
+}
+const visionModels = createModels({
+  dir: modelsDir,
+  fetch: (url, opts) => require('electron').net.fetch(url, opts),
+  getUserModels: () => store.settings.visionModels || [],
+  setUserModels: (list) => { store.settings.visionModels = list; saveStore({ sync: false }); broadcast('vision:models', null); },
+  emit: (event, data) => { broadcast(`vision:${event}`, data); if (data.state === 'done' || data.state === 'error') broadcast('vision:models', null); },
+});
+
+function setVision(id, vision) {
+  const prev = getConn(id);
+  if (!prev) return null;
+  const v = VISION.normalizeVision(vision);
+  store.connections[store.connections.indexOf(prev)] = { ...prev, vision: v };
+  saveStore();
+  return v;
+}
+
+ipcMain.handle('vision:models', () => ({ dir: modelsDir(), models: visionModels.list() }));
+ipcMain.handle('vision:download', (_e, id) => visionModels.download(String(id)));
+ipcMain.handle('vision:cancel', (_e, id) => visionModels.cancel(String(id)));
+ipcMain.handle('vision:remove', async (_e, id) => { const r = await visionModels.remove(String(id)); broadcast('vision:models', null); return r; });
+ipcMain.handle('vision:read', (_e, id) => visionModels.read(String(id)));
+ipcMain.handle('vision:addModel', (_e, input) => visionModels.addUser(input || {}));
+ipcMain.handle('vision:removeModel', (_e, id) => visionModels.removeUser(String(id)));
+ipcMain.handle('vision:openDir', () => shell.openPath(modelsDir()));
+ipcMain.handle('vision:pickModel', async (event) => {
+  const res = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), { title: t('vis.pickModel'), properties: ['openFile'], filters: [{ name: 'ONNX', extensions: ['onnx'] }] });
+  return res.canceled || !res.filePaths.length ? null : res.filePaths[0];
+});
+ipcMain.handle('vision:runtime', async () => {
+  const b = await fs.promises.readFile(path.join(__dirname, 'vendor', 'ort', 'ort-wasm-simd-threaded.wasm'));
+  return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+});
+ipcMain.handle('vision:set', (_e, { id, vision }) => setVision(id, vision));
+// Ayar dosyası: yapay görü ayarları (ve kullanılan kullanıcı modellerinin tanımları) başka kameralara uygulanabilsin
+ipcMain.handle('vision:export', async (event, id) => {
+  const c = getConn(id);
+  if (!c) return null;
+  const vision = VISION.normalizeVision(c.vision);
+  const used = (store.settings.visionModels || []).filter((m) => vision.modules[m.id]);
+  const res = await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), {
+    title: t('vis.exportTitle'), defaultPath: path.join(app.getPath('documents'), `${safeName(c.name)}.vmvision.json`), filters: [{ name: 'Video Master', extensions: ['json'] }],
+  });
+  if (res.canceled || !res.filePath) return null;
+  await fs.promises.writeFile(res.filePath, JSON.stringify({ type: 'videomaster-vision', version: 1, app: app.getVersion(), vision, models: used }, null, 2));
+  return res.filePath;
+});
+ipcMain.handle('vision:import', async (event, id) => {
+  const res = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), { title: t('vis.importTitle'), properties: ['openFile'], filters: [{ name: 'Video Master', extensions: ['json'] }] });
+  if (res.canceled || !res.filePaths.length) return null;
+  try {
+    const data = JSON.parse(await fs.promises.readFile(res.filePaths[0], 'utf8'));
+    if (!data || data.type !== 'videomaster-vision' || !data.vision) return { ok: false, error: 'bad_file' };
+    // Dosyadaki kullanıcı modelleri bu bilgisayarda yoksa tanımları eklenir (adresi olanlar indirilebilir)
+    const have = store.settings.visionModels || [];
+    const add = (Array.isArray(data.models) ? data.models : []).map(VISION.normalizeUserModel).filter((m) => m && !have.some((x) => x.id === m.id))
+      .map((m) => ({ id: m.id, name: m.name, url: m.files[0].url || '', labels: m.labels, inputSize: m.inputSize, decoder: m.decoder }));
+    if (add.length) { store.settings.visionModels = [...have, ...add]; broadcast('vision:models', null); }
+    return { ok: true, vision: setVision(id, data.vision), file: res.filePaths[0] };
+  } catch { return { ok: false, error: 'bad_file' }; }
 });
 
 // ---------------------------------------------------------------------------

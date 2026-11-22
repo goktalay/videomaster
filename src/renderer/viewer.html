@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: vdm:">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: vdm:">
   <title>Video Master</title>
   <link rel="stylesheet" href="common.css">
   <link rel="stylesheet" href="mastertool.css">
@@ -33,6 +33,7 @@
       <div class="vw-left">
         <section class="vw-video" id="video">
           <canvas id="canvas"></canvas>
+          <canvas id="visionCanvas"></canvas>
           <div class="vw-overlay" id="overlay"></div>
           <div class="vw-osd" id="osd"></div>
         </section>
@@ -55,6 +56,7 @@
         <div class="seg panel-tabs hidden" id="panelTabs"></div>
         <div class="panel-body" id="panelBody"></div>
         <div class="panel-body hidden" id="camBody"></div>
+        <div class="panel-body hidden" id="visBody"></div>
         <div class="panel-foot" id="panelFoot"><span class="panel-note" id="panelNote"></span><span style="flex:1"></span>
           <button class="btn sm" id="panelRevert"></button><button class="btn sm primary" id="panelApply"></button></div>
       </aside>
@@ -73,6 +75,7 @@
   <script src="../models/skydroid.js"></script>
   <script src="../models/defs.js"></script>
   <script src="../i18n.js"></script>
+  <script src="../vision/catalog.js"></script>
   <script src="../schema.js"></script>
   <script src="ui.js"></script>
   <script src="settings.js"></script>
@@ -81,6 +84,7 @@
   <script src="hexview.js"></script>
   <script src="connform.js"></script>
   <script src="campanel.js"></script>
+  <script src="vision.js"></script>
   <script src="viewer.js"></script>
 </body>
 </html>

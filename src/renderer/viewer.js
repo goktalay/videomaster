@@ -21,6 +21,7 @@ let hexView = null;
 let cam = null;       // kamera kontrol paneli (model seçiliyse)
 let camModel = null;  // panelin kurulduğu model
 let camPick = null;   // videoda nokta seçimi açıkken ilgili denetim
+let vision = null;    // yapay görü paneli
 
 // --- Üst çubuk ------------------------------------------------------------------
 $('#btnShot').innerHTML = icon('camera') + esc(t('vw.snapshot'));
@@ -152,6 +153,7 @@ function applyLayout() {
   $('#bottom').style.height = `${settings.bottomHeight || 290}px`;
   $('#side').style.width = `${settings.infoWidth || 380}px`;
   player.draw();
+  if (vision) vision.draw();
   if (chart) chart.draw();
   if (hexView) hexView.paint();
 }
@@ -192,6 +194,7 @@ function applyConn() {
   document.title = `${conn.name} — Video Master`;
   player.fit = conn.fit || 'contain';
   player.draw();
+  if (vision) vision.draw();
   $('#btnFit').title = `${t('f.fit')}: ${t(`o.fit.${conn.fit || 'contain'}`)}`;
 }
 
@@ -359,16 +362,19 @@ $('#panelRevert').onclick = () => buildPanel();
 
 // --- Kamera kontrol paneli (modele özel) ---------------------------------------------
 function paintPanelTabs() {
-  const has = !!cam;
-  if (!has && settings.panelTab === 'camera') settings.panelTab = 'stream';
-  const tab = has && settings.panelTab === 'camera' ? 'camera' : 'stream';
-  const tabs = $('#panelTabs');
-  tabs.classList.toggle('hidden', !has);
-  tabs.innerHTML = [['stream', 'gear', t('vw.panelTitle')], ['camera', 'camera', t('vw.tabCamera')]].map(([v, ic, l]) => `<button type="button" data-v="${v}" class="${tab === v ? 'on' : ''}">${icon(ic)}${esc(l)}</button>`).join('');
+  if (!cam && settings.panelTab === 'camera') settings.panelTab = 'stream';
+  const tab = ['camera', 'vision'].includes(settings.panelTab) ? settings.panelTab : 'stream';
+  const list = [['stream', 'gear', t('vw.tabStream')]];
+  if (cam) list.push(['camera', 'camera', t('vw.tabCamera')]);
+  list.push(['vision', 'eye', t('vw.tabVision')]);
+  $('#panelTabs').classList.remove('hidden');
+  $('#panelTabs').innerHTML = list.map(([v, ic, l]) => `<button type="button" data-v="${v}" class="${tab === v ? 'on' : ''}">${icon(ic)}${esc(l)}</button>`).join('');
   $('#panelBody').classList.toggle('hidden', tab !== 'stream');
   $('#panelFoot').classList.toggle('hidden', tab !== 'stream');
   $('#camBody').classList.toggle('hidden', tab !== 'camera');
-  $('#panelTitle').innerHTML = `${icon(tab === 'camera' ? 'camera' : 'gear')}<b>${esc(tab === 'camera' ? `${t('vw.tabCamera')} — ${SCHEMA.MODEL_BY_ID[camModel].name}` : t('vw.panelTitle'))}</b>`;
+  $('#visBody').classList.toggle('hidden', tab !== 'vision');
+  const title = tab === 'camera' ? `${t('vw.tabCamera')} — ${SCHEMA.MODEL_BY_ID[camModel].name}` : tab === 'vision' ? t('vw.visionTitle') : t('vw.panelTitle');
+  $('#panelTitle').innerHTML = `${icon(tab === 'camera' ? 'camera' : tab === 'vision' ? 'eye' : 'gear')}<b>${esc(title)}</b>`;
 }
 $('#panelTabs').onclick = (e) => {
   const b = e.target.closest('button');
@@ -505,6 +511,9 @@ $('#chartUnit').onclick = (e) => { const b = e.target.closest('button'); if (!b)
   applyLayout();
   await buildPanel();
   await syncCamPanel(true);
+  vision = buildVisionPanel({ id: ID, conn, canvas: $('#visionCanvas'), player });
+  $('#visBody').appendChild(vision.el);
+  paintPanelTabs();
   state = (await window.api.streamState(ID)) || state;
   chart.set(await window.api.streamHistory(ID));
   paintState();
