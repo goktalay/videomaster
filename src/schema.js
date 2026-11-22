@@ -31,6 +31,11 @@
     G722: { pt: 9, rate: 8000, ch: 1 }, 'MP4A-LATM': { pt: 97, rate: 48000, ch: 2 },
   };
 
+  // Kamera modelleri (src/models): RTSP bağlantısında model seçilince modelin kendi alanları ve kontrol paneli gelir
+  const MODELS = (typeof module !== 'undefined' && module.exports) ? require('./models/defs') : (root.CAMERA_MODEL_LIST || Object.values(root.CAMERA_MODELS || {}));
+  const MODEL_BY_ID = Object.fromEntries(MODELS.map((m) => [m.id, m]));
+  const MODEL_PROTOCOLS = ['rtsp'];
+
   const P = (...ids) => ids; // okunabilirlik
   const NET = P('rtsp', 'rtp', 'udp', 'srt', 'rtmp', 'http', 'tcp', 'sdp', 'custom');
 
@@ -128,9 +133,29 @@
     { key: 'recSegmentMin', tab: 'record', type: 'number', def: 0, min: 0, max: 1440, unit: 'min' },
     { key: 'recName', tab: 'record', type: 'text', def: '{name}_{date}_{time}', mono: true, span: 2 },
   ];
+  // Kamera modeli: "Bağlantı" sekmesinin başında; model seçilince "Kamera" sekmesi (modelin kendi alanları) görünür
+  FIELDS.unshift({ key: 'model', tab: 'general', type: 'select', def: 'generic', opts: ['generic', ...MODELS.map((m) => m.id)], on: MODEL_PROTOCOLS, span: 3 });
+
+  // Modellerin kendi alanları: aynı anahtarı birden çok model kullanabilir (varsayılanı modele göre değişir)
+  for (const m of MODELS) {
+    for (const mf of m.fields || []) {
+      const have = FIELDS.find((f) => f.key === mf.key);
+      if (have) { have.models.push(m.id); continue; }
+      const f = { ...mf, tab: 'camera', on: MODEL_PROTOCOLS, models: [m.id] };
+      f.when = (c) => f.models.includes(c.model);
+      FIELDS.push(f);
+    }
+  }
+  // Modelin alan varsayılanları (model alanları + adres/yol gibi bağlantı varsayılanları)
+  function modelFieldDefaults(id) {
+    const m = MODEL_BY_ID[id];
+    const out = {};
+    if (m) for (const mf of m.fields || []) out[mf.key] = mf.def;
+    return out;
+  }
 
   const TABS = [
-    ['general', 'link'], ['network', 'globe'], ['rtp', 'layers'], ['decode', 'monitor'], ['audio', 'audio'], ['capture', 'terminal'], ['record', 'record'],
+    ['general', 'link'], ['network', 'globe'], ['rtp', 'layers'], ['decode', 'monitor'], ['audio', 'audio'], ['capture', 'terminal'], ['record', 'record'], ['camera', 'camera'],
   ];
 
   const FIELD_BY_KEY = Object.fromEntries(FIELDS.map((f) => [f.key, f]));
@@ -155,6 +180,7 @@
     c.name = String(src.name || '').trim().slice(0, 120);
     c.folderId = src.folderId || null;
     c.color = typeof src.color === 'string' && /^#[0-9a-f]{6}$/i.test(src.color) ? src.color : null;
+    if (MODEL_BY_ID[src.model] && MODEL_PROTOCOLS.includes(c.protocol)) Object.assign(c, modelFieldDefaults(src.model));
     for (const f of FIELDS) {
       const v = src[f.key];
       if (v === undefined || v === null) continue;
@@ -167,6 +193,7 @@
       } else c[f.key] = String(v).slice(0, f.type === 'textarea' ? 8000 : 2000);
     }
     for (const k of ['host', 'path', 'username', 'url', 'localAddr', 'sources', 'srtStreamId']) c[k] = c[k].trim();
+    if (!MODEL_PROTOCOLS.includes(c.protocol)) c.model = 'generic';
     if (c.path && !c.path.startsWith('/') && c.protocol !== 'custom') c.path = '/' + c.path;
     if (!PROTOCOLS[c.protocol].secureScheme) c.secure = false;
     return c;
@@ -239,7 +266,24 @@
     return bad;
   }
 
-  const api = { PROTOCOLS, PROTOCOL_IDS, RTP_VIDEO, RTP_AUDIO, FIELDS, FIELD_BY_KEY, TABS, CONNECTION_KEYS, defaults, normalize, visible, tabVisible, parseUrl, isMulticast, displayUrl, validate };
+  // Model seçilince forma uygulanacak değişiklikler: modelin alan varsayılanları her zaman; adres, port, yol gibi
+  // bağlantı varsayılanları yalnızca alan boşsa ya da hâlâ genel/önceki modelin varsayılanındaysa (girilen bilgi korunur)
+  function applyModel(c, id, prevId) {
+    const m = MODEL_BY_ID[id];
+    const prev = MODEL_BY_ID[prevId];
+    const patch = { model: m ? id : 'generic', ...modelFieldDefaults(id) };
+    if (!m) return patch;
+    const base = defaults(c.protocol);
+    for (const [k, v] of Object.entries(m.defaults || {})) {
+      const cur = c[k];
+      const untouched = cur === '' || cur === undefined || cur === null || cur === base[k] || (prev && prev.defaults && cur === prev.defaults[k]);
+      if (untouched) patch[k] = v;
+    }
+    return patch;
+  }
+  const modelOf = (c) => (c && MODEL_PROTOCOLS.includes(c.protocol) && MODEL_BY_ID[c.model]) || null;
+
+  const api = { MODELS, MODEL_BY_ID, applyModel, modelOf, PROTOCOLS, PROTOCOL_IDS, RTP_VIDEO, RTP_AUDIO, FIELDS, FIELD_BY_KEY, TABS, CONNECTION_KEYS, defaults, normalize, visible, tabVisible, parseUrl, isMulticast, displayUrl, validate };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SCHEMA = api;
 })(typeof self !== 'undefined' ? self : this);

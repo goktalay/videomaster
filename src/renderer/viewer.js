@@ -18,6 +18,9 @@ const player = new FramePlayer($('#canvas'));
 const audio = new AudioPlayer();
 let chart = null;
 let hexView = null;
+let cam = null;       // kamera kontrol paneli (model seçiliyse)
+let camModel = null;  // panelin kurulduğu model
+let camPick = null;   // videoda nokta seçimi açıkken ilgili denetim
 
 // --- Üst çubuk ------------------------------------------------------------------
 $('#btnShot').innerHTML = icon('camera') + esc(t('vw.snapshot'));
@@ -51,7 +54,8 @@ $('#btnFit').onclick = () => {
 $('#btnMute').onclick = () => setMuted(!audio.muted);
 $('#volume').oninput = (e) => { audio.setVolume(Number(e.target.value) / 100); if (audio.muted && Number(e.target.value) > 0) setMuted(false); paintVolume(); };
 $('#volume').onchange = (e) => saveSoft({ volume: Number(e.target.value) });
-$('#video').addEventListener('dblclick', () => toggleFullscreen());
+$('#video').addEventListener('dblclick', () => { if (!camPick) toggleFullscreen(); });
+$('#video').addEventListener('click', (e) => pickOnVideo(e));
 
 document.addEventListener('keydown', (e) => {
   if (document.querySelector('.modal-backdrop')) return;
@@ -353,6 +357,87 @@ $('#panelApply').onclick = async () => {
 };
 $('#panelRevert').onclick = () => buildPanel();
 
+// --- Kamera kontrol paneli (modele özel) ---------------------------------------------
+function paintPanelTabs() {
+  const has = !!cam;
+  if (!has && settings.panelTab === 'camera') settings.panelTab = 'stream';
+  const tab = has && settings.panelTab === 'camera' ? 'camera' : 'stream';
+  const tabs = $('#panelTabs');
+  tabs.classList.toggle('hidden', !has);
+  tabs.innerHTML = [['stream', 'gear', t('vw.panelTitle')], ['camera', 'camera', t('vw.tabCamera')]].map(([v, ic, l]) => `<button type="button" data-v="${v}" class="${tab === v ? 'on' : ''}">${icon(ic)}${esc(l)}</button>`).join('');
+  $('#panelBody').classList.toggle('hidden', tab !== 'stream');
+  $('#panelFoot').classList.toggle('hidden', tab !== 'stream');
+  $('#camBody').classList.toggle('hidden', tab !== 'camera');
+  $('#panelTitle').innerHTML = `${icon(tab === 'camera' ? 'camera' : 'gear')}<b>${esc(tab === 'camera' ? `${t('vw.tabCamera')} — ${SCHEMA.MODEL_BY_ID[camModel].name}` : t('vw.panelTitle'))}</b>`;
+}
+$('#panelTabs').onclick = (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  settings.panelTab = b.dataset.v;
+  window.api.setSettings({ panelTab: settings.panelTab });
+  paintPanelTabs();
+};
+
+function setPick(control) {
+  camPick = control;
+  $('#video').classList.toggle('picking', !!control);
+}
+
+// Model değiştiyse panel yeniden kurulur; model kaldırıldıysa panel kapanır
+async function syncCamPanel(first) {
+  const def = SCHEMA.modelOf(conn);
+  const id = def ? def.id : null;
+  if (id !== camModel) {
+    if (cam) { cam.destroy(); cam = null; setPick(null); await window.api.camDisconnect(ID); }
+    camModel = id;
+    $('#camBody').innerHTML = '';
+    if (def) {
+      cam = buildCamPanel({ id: ID, def, conn, onPick: setPick });
+      $('#camBody').appendChild(cam.el);
+      if (first) settings.panelTab = settings.panelTab || 'camera';
+      const st = await window.api.camState(ID);
+      cam.setState(st && st.connected ? st : conn.camAutoConnect ? await window.api.camConnect(ID) : null);
+    }
+  } else if (cam) cam.setConn(conn);
+  paintPanelTabs();
+}
+
+// Videoda tıklanan nokta → kameranın görüntü uzayında merkeze göre piksel (çevirme ve döndürme geri alınır)
+function pickOnVideo(e) {
+  if (!camPick || !cam) return;
+  if (!player.last) return toast(t('cam.noVideo'), { type: 'err' });
+  const c = $('#canvas');
+  const r = c.getBoundingClientRect();
+  let w = r.width; let hh = r.height; let x0 = 0; let y0 = 0;
+  if (player.fit !== 'fill') {
+    const k = player.fit === 'cover' ? Math.max(r.width / player.width, r.height / player.height) : Math.min(r.width / player.width, r.height / player.height);
+    w = player.width * k; hh = player.height * k; x0 = (r.width - w) / 2; y0 = (r.height - hh) / 2;
+  }
+  let u = (e.clientX - r.left - x0) / w;
+  let v = (e.clientY - r.top - y0) / hh;
+  if (u < 0 || u > 1 || v < 0 || v > 1) return;
+  if (conn.flipH) u = 1 - u;
+  if (conn.flipV) v = 1 - v;
+  if (conn.rotate === '90') [u, v] = [v, 1 - u];
+  else if (conn.rotate === '180') [u, v] = [1 - u, 1 - v];
+  else if (conn.rotate === '270') [u, v] = [1 - v, u];
+  const sp = camPick.space || { w: 1920, h: 1080 };
+  const x = Math.round((u - 0.5) * sp.w);
+  let y = Math.round((v - 0.5) * sp.h);
+  if (camPick.invertKey && conn[camPick.invertKey]) y = -y;
+  const mark = h('<span class="pick-mark"></span>');
+  mark.style.left = `${e.clientX - $('#video').getBoundingClientRect().left}px`;
+  mark.style.top = `${e.clientY - $('#video').getBoundingClientRect().top}px`;
+  $('#video').appendChild(mark);
+  setTimeout(() => mark.remove(), 900);
+  cam.run(camPick.cmd, { x, y });
+}
+
+window.api.onCamState((m) => { if (m.id === ID && cam) cam.setState(m.state); });
+window.api.onCamStatus((m) => { if (m.id === ID && cam) cam.setStatus(m.status); });
+window.api.onCamReply((m) => { if (m.id === ID && cam) cam.reply(m); });
+window.api.onCamLog((m) => { if (m.id === ID && cam) cam.addLog(m); });
+
 // --- Olaylar --------------------------------------------------------------------
 window.api.onStreamState((st) => {
   if (st.id !== ID) return;
@@ -385,10 +470,11 @@ window.api.onConnectionChanged((c) => {
   conn = c;
   applyConn();
   if (!dirty && form) form.setValues(c);
+  syncCamPanel(false);
 });
 window.api.onStoreChanged((d) => {
   const unit = settings.chartUnit;
-  const layout = { panelOpen: settings.panelOpen, bottomOpen: settings.bottomOpen, panelWidth: settings.panelWidth, bottomHeight: settings.bottomHeight, infoWidth: settings.infoWidth, chartRange: settings.chartRange };
+  const layout = { panelTab: settings.panelTab, panelOpen: settings.panelOpen, bottomOpen: settings.bottomOpen, panelWidth: settings.panelWidth, bottomHeight: settings.bottomHeight, infoWidth: settings.infoWidth, chartRange: settings.chartRange };
   settings = { ...d.settings, ...layout };
   paintThemeBtn();
   if (unit !== settings.chartUnit) paintChartControls();
@@ -418,6 +504,7 @@ $('#chartUnit').onclick = (e) => { const b = e.target.closest('button'); if (!b)
   paintChartControls();
   applyLayout();
   await buildPanel();
+  await syncCamPanel(true);
   state = (await window.api.streamState(ID)) || state;
   chart.set(await window.api.streamHistory(ID));
   paintState();

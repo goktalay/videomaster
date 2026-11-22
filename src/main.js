@@ -10,6 +10,7 @@ const SCHEMA = require('./schema');
 const { createAccount, apiBase, APP_CODE } = require('./account');
 const { createSso } = require('./sso');
 const { StreamSession } = require('./stream/session');
+const CAMERAS = require('./models');
 
 // Arayüz dili: ayarlarda seçilen ya da sistem dili (desteklenmiyorsa İngilizce)
 let t = I18N.createT('en');
@@ -63,7 +64,7 @@ const defaultStore = () => ({
     chartUnit: 'bit',        // bit | byte
     recordFormat: 'mp4',     // yeni bağlantılarda kayıt biçimi
     // akış penceresi düzeni (cihaza özgü, sessiz kaydedilir)
-    panelOpen: true, panelWidth: 380, bottomOpen: true, bottomHeight: 290, infoWidth: 380, chartRange: 60, cardSize: 'm',
+    panelTab: '', panelOpen: true, panelWidth: 380, bottomOpen: true, bottomHeight: 290, infoWidth: 380, chartRange: 60, cardSize: 'm',
   },
 });
 
@@ -403,6 +404,7 @@ function openViewer(id) {
   viewers.set(id, win);
   win.on('closed', () => {
     viewers.delete(id);
+    camClose(id);
     const s = sessions.get(id);
     if (!s) return;
     dropSubscriber(id);
@@ -422,6 +424,7 @@ function closeViewer(id) {
 // Akış oturumları
 // ---------------------------------------------------------------------------
 const sessions = new Map();   // bağlantıId -> StreamSession
+const cameras = new Map();    // bağlantıId -> kamera sürücüsü (src/models)
 const subscribers = new Map(); // bağlantıId -> Map(webContentsId -> { wc, busy, pending, minGap, last, sentAt })
 const lastFrames = new Map();  // bağlantıId -> JPEG (anlık görüntü ve kart küçük resmi için)
 
@@ -472,6 +475,7 @@ function dropSession(id) {
 }
 
 function stopAllSessions() {
+  for (const id of [...cameras.keys()]) camClose(id);
   for (const s of sessions.values()) s.stop().catch(() => {});
   sessions.clear();
   subscribers.clear();
@@ -625,6 +629,7 @@ ipcMain.handle('app:copy', (_e, text) => clipboard.writeText(String(text || ''))
 ipcMain.handle('store:get', () => publicStore());
 
 // Yeniden bağlanma gerektirmeyen alanlar (görünüm, kayıt tercihleri, notlar)
+const isCamKey = (k) => k === 'model' || /^cam[A-Z]/.test(k);
 const SOFT_KEYS = new Set(['name', 'notes', 'folderId', 'color', 'autoPlay', 'fit', 'volume', 'startMuted', 'recFormat', 'recAudio', 'recAudioCodec', 'recSegmentMin', 'recName', 'createdAt', 'id']);
 
 function saveConnection(form) {
@@ -648,9 +653,15 @@ function saveConnection(form) {
   // Çalışan oturum: ağ ya da çözme ayarı değiştiyse yeni ayarlarla yeniden bağlan
   const s = sessions.get(id);
   if (s && before) {
-    const hard = Object.keys(c).some((k) => !SOFT_KEYS.has(k) && JSON.stringify(c[k]) !== JSON.stringify(before[k]));
+    const hard = Object.keys(c).some((k) => !SOFT_KEYS.has(k) && !isCamKey(k) && JSON.stringify(c[k]) !== JSON.stringify(before[k]));
     if (hard && s.running) s.reload().catch(() => {});
     else s.conn = SCHEMA.normalize(plainConn(next));
+  }
+  // Kamera kontrolü: model, adres ya da kontrol ayarı değiştiyse bağlantı yeni ayarlarla yeniden kurulur
+  if (before && cameras.has(id) && ['host', ...Object.keys(c).filter(isCamKey)].some((k) => JSON.stringify(c[k]) !== JSON.stringify(before[k]))) {
+    const was = cameras.get(id).connected;
+    camClose(id);
+    if (was && SCHEMA.modelOf(c)) camOpen(id);
   }
   return { ok: true, id };
 }
@@ -756,7 +767,7 @@ ipcMain.handle('folder:delete', (_e, id) => {
 });
 
 // Görünüm ayarları (panel boyutları vb.) sessizce kaydedilir, yayınlanmaz ve senkronlanmaz
-const QUIET_SETTINGS = ['panelOpen', 'panelWidth', 'bottomOpen', 'bottomHeight', 'infoWidth', 'chartRange', 'cardSize', 'openAtLogin', 'minimizeToTray', 'closeToTray', 'trayHintShown', 'recordDir'];
+const QUIET_SETTINGS = ['panelTab', 'panelOpen', 'panelWidth', 'bottomOpen', 'bottomHeight', 'infoWidth', 'chartRange', 'cardSize', 'openAtLogin', 'minimizeToTray', 'closeToTray', 'trayHintShown', 'recordDir'];
 
 ipcMain.handle('settings:set', (_e, patch) => {
   Object.assign(store.settings, patch);
@@ -888,6 +899,63 @@ ipcMain.handle('tap:save', async (event, { id, base, length }) => {
   const { data } = length ? tap.read(base, base + length) : tap.snapshot();
   await fs.promises.writeFile(res.filePath, data);
   return res.filePath;
+});
+
+// ---------------------------------------------------------------------------
+// Kamera kontrolü (modele özel sürücüler: src/models). Sürücü akış penceresiyle yaşar.
+// ---------------------------------------------------------------------------
+function camSend(id, channel, data) {
+  const w = viewers.get(id);
+  if (w && !w.isDestroyed()) w.webContents.send(channel, { id, ...data });
+}
+
+async function camOpen(id) {
+  const c = getConn(id);
+  if (!c) return null;
+  const conn = SCHEMA.normalize(plainConn(c));
+  if (!SCHEMA.modelOf(conn)) return null;
+  let drv = cameras.get(id);
+  if (!drv) {
+    drv = CAMERAS.createDriver(conn);
+    if (!drv) return null;
+    cameras.set(id, drv);
+    drv.on('state', (st) => camSend(id, 'cam:state', { state: st }));
+    drv.on('status', (status) => camSend(id, 'cam:status', { status }));
+    drv.on('reply', (r) => camSend(id, 'cam:reply', r));
+    drv.on('log', (l) => camSend(id, 'cam:log', l));
+  }
+  return drv.connect();
+}
+
+function camClose(id) {
+  const drv = cameras.get(id);
+  if (!drv) return;
+  cameras.delete(id);
+  drv.disconnect();
+  drv.removeAllListeners();
+  camSend(id, 'cam:state', { state: drv.snapshot() });
+}
+
+ipcMain.handle('cam:connect', (_e, id) => camOpen(id));
+ipcMain.handle('cam:disconnect', (_e, id) => { camClose(id); return null; });
+ipcMain.handle('cam:state', (_e, id) => (cameras.has(id) ? cameras.get(id).snapshot() : null));
+ipcMain.handle('cam:exec', async (_e, { id, cmd, args }) => {
+  const c = getConn(id);
+  if (!c) return { ok: false, error: 'not_found' };
+  // Aygıtın web/FTP arayüzü gibi yerel işlemler (ağa komut gönderilmez)
+  const url = CAMERAS.external(SCHEMA.normalize(plainConn(c)), String(cmd));
+  if (url) {
+    if (!/^(ftp|https?):\/\//i.test(url)) return { ok: false, error: 'unsupported' };
+    await shell.openExternal(url).catch(() => {});
+    return { ok: true, opened: url.replace(/\/\/[^@/]*@/, '//') };
+  }
+  const drv = cameras.get(id);
+  if (!drv || !drv.connected) return { ok: false, error: 'not_connected' };
+  try { return await drv.exec(String(cmd), args || {}); } catch (e) { return { ok: false, error: 'error', detail: e.message }; }
+});
+ipcMain.on('cam:hold', (_e, { id, cmd, args }) => {
+  const drv = cameras.get(id);
+  if (drv && drv.connected) { try { drv.hold(String(cmd), args || null); } catch { /* yok */ } }
 });
 
 // ---------------------------------------------------------------------------

@@ -5,8 +5,9 @@
 
 const PROTO_ICONS = Object.fromEntries(Object.entries(SCHEMA.PROTOCOLS).map(([k, p]) => [k, p.icon]));
 
-function fieldLabel(f, c) { return tOpt(`f.${f.key}.${c.protocol}`, t(`f.${f.key}`)); }
-function fieldHint(f, c) { return tOpt(`h.${f.key}.${c.protocol}`, tOpt(`h.${f.key}`, '')); }
+// Etiket ve ipucu: önce modele özel (f.<alan>.<model>), sonra protokole özel, sonra genel metin
+function fieldLabel(f, c) { return tOpt(`f.${f.key}.${c.model}`, tOpt(`f.${f.key}.${c.protocol}`, t(`f.${f.key}`))); }
+function fieldHint(f, c) { return tOpt(`h.${f.key}.${c.model}`, tOpt(`h.${f.key}.${c.protocol}`, tOpt(`h.${f.key}`, ''))); }
 function optionLabel(f, v) {
   const raw = f.raw === true || (Array.isArray(f.raw) && f.raw.includes(v));
   return raw ? `${v}${f.suffix || ''}` : t(`o.${f.key}.${v}`);
@@ -173,6 +174,8 @@ function buildConnForm(initial, opts = {}) {
       const p = SCHEMA.PROTOCOLS[c.protocol];
       if (c.port === (c.secure ? p.port : p.securePort)) { c.port = c.secure ? p.securePort : p.port; input('port').value = c.port; }
     }
+    // Kamera modeli seçilince modelin varsayılanları (adres, yol, kontrol portu...) uygulanır; girilmiş bilgiler korunur
+    if (k === 'model' && before.model !== c.model) { Object.assign(c, SCHEMA.applyModel(c, c.model, before.model)); write(); if (!compact && SCHEMA.modelOf(c)) toast(t('cf.modelApplied'), { type: 'ok', timeout: 2600 }); }
     // RTP: kodek seçilince yük türü ve saat hızı önerilir
     if (k === 'rtpVideoCodec' && SCHEMA.RTP_VIDEO[c.rtpVideoCodec]) { const d = SCHEMA.RTP_VIDEO[c.rtpVideoCodec]; c.rtpVideoPt = d.pt; c.rtpVideoRate = d.rate; write(); }
     if (k === 'rtpAudioCodec' && SCHEMA.RTP_AUDIO[c.rtpAudioCodec]) { const d = SCHEMA.RTP_AUDIO[c.rtpAudioCodec]; c.rtpAudioPt = d.pt; c.rtpAudioRate = d.rate; c.rtpAudioChannels = d.ch; write(); }

@@ -1,7 +1,7 @@
 {
   "name": "video-master",
   "productName": "Video Master",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "RTSP, RTP, UDP, SRT, RTMP ve HLS ağ akışı görüntüleyici, çözümleyici ve kaydedici (Mastertool ailesi)",
   "main": "src/main.js",
   "author": "Video Master",
@@ -27,14 +27,34 @@
   "build": {
     "appId": "com.videomaster.app",
     "productName": "Video Master",
-    "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["src/**/*", "build/icon.png", "package.json"],
-    "asarUnpack": ["node_modules/ffmpeg-static/**", "node_modules/@napi-rs/**"],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**",
+      "node_modules/@napi-rs/**"
+    ],
     "win": {
       "icon": "build/icon.ico",
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "nsis": {
@@ -46,6 +66,8 @@
       "include": "build/installer.nsh",
       "menuCategory": "Master Tool"
     },
-    "portable": { "artifactName": "Video-Master-Portable-${version}.exe" }
+    "portable": {
+      "artifactName": "Video-Master-Portable-${version}.exe"
+    }
   }
 }

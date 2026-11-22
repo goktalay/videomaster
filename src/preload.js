@@ -79,4 +79,15 @@ contextBridge.exposeInMainWorld('api', {
   tapSnapshot: (id) => ipcRenderer.invoke('tap:snapshot', id),
   tapClear: (id) => ipcRenderer.invoke('tap:clear', id),
   tapSave: (id, base, length) => ipcRenderer.invoke('tap:save', { id, base, length }),
+
+  // kamera kontrolü (modele özel)
+  camConnect: (id) => ipcRenderer.invoke('cam:connect', id),
+  camDisconnect: (id) => ipcRenderer.invoke('cam:disconnect', id),
+  camState: (id) => ipcRenderer.invoke('cam:state', id),
+  camExec: (id, cmd, args) => ipcRenderer.invoke('cam:exec', { id, cmd, args }),
+  camHold: (id, cmd, args) => ipcRenderer.send('cam:hold', { id, cmd, args }),
+  onCamState: on('cam:state'),
+  onCamStatus: on('cam:status'),
+  onCamReply: on('cam:reply'),
+  onCamLog: on('cam:log'),
 });

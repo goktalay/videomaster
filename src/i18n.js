@@ -21,6 +21,10 @@
     ? { tr: require('./i18n/tr'), en: require('./i18n/en'), fr: require('./i18n/fr'), de: require('./i18n/de'), es: require('./i18n/es'), ar: require('./i18n/ar'), zh: require('./i18n/zh'), ru: require('./i18n/ru') }
     : (root.I18N_STRINGS || {});
 
+  // Kamera modellerinin kendi metinleri (src/models/<model>.js içindeki i18n) sözlüklere eklenir
+  const MODELS = isNode ? require('./models/defs') : (root.CAMERA_MODEL_LIST || Object.values(root.CAMERA_MODELS || {}));
+  for (const m of MODELS) for (const [lang, dict] of Object.entries(m.i18n || {})) if (STRINGS[lang]) Object.assign(STRINGS[lang], dict);
+
   // Dil kodunu (ör. "tr-TR") desteklenen bir dile çevirir
   function resolveLanguage(code) {
     const c = String(code || '').toLowerCase().split(/[-_]/)[0];

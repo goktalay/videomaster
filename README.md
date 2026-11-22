@@ -39,6 +39,13 @@ Derlenmiş exe'ler [Releases](https://github.com/goktalay/videomaster/releases) 
 
 Kısayollar (akış penceresi): Space oynat / durdur · R kayıt · S görüntü al · M ses · F tam ekran · H akış verisi paneli · P ayar paneli.
 
+## Kamera modelleri ve kontrol
+
+RTSP bağlantısında bir **kamera modeli** seçilirse modele özel ayarlar istenir ve akış penceresinde **Kamera kontrol**
+paneli açılır (joystick, takip, yakınlaştırma, kayıt, termal palet, lazer mesafe, cihaz komutları, durum bilgisi).
+Desteklenen modeller: **CPDD075CCT**, **Skydroid C10 / C10 Pro, C12, C13, C20**. Ayrıntı, kaynaklar ve yeni model ekleme:
+[docs/kamera-modelleri.md](docs/kamera-modelleri.md).
+
 ## Protokoller
 
 | Protokol | Adres | Akış verisinde görünen |

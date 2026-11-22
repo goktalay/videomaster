@@ -137,3 +137,57 @@
 .empty-note { color: var(--text-3); font-size: 12px; padding: 14px; text-align: center; }
 .src-pick { display: flex; gap: 8px; }
 .src-pick .input { flex: 1; min-width: 0; }
+
+/* --- Kamera kontrol paneli --- */
+.panel-tabs { margin: 10px 12px 0; display: flex; }
+.panel-tabs button { flex: 1; justify-content: center; font-size: 12.5px; white-space: nowrap; }
+.cam { display: grid; gap: 8px; }
+.cam-link { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cam-remote { font-size: 11.5px; color: var(--text-3); direction: ltr; }
+.cam-warn { font-size: 11.5px; color: var(--warn); line-height: 1.4; }
+.cam-tests { display: flex; flex-wrap: wrap; gap: 5px; }
+.cam-tests:empty { display: none; }
+.cam-test { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 11px; border: 1px solid var(--border); color: var(--text-2); }
+.cam-test svg.i { width: 11px; height: 11px; }
+.cam-test.ok svg.i { color: var(--ok); }
+.cam-test.bad { color: var(--err); border-color: color-mix(in srgb, var(--err) 45%, transparent); }
+.cam-status { padding: 2px 12px 10px; }
+.cam-ctl { display: grid; gap: 10px; padding: 4px 12px 12px; }
+.cam-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.cam-btns .btn { justify-content: flex-start; min-width: 0; }
+.cam-btns .btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cam-btns .btn.hold.on, .cam-pick.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cam-form { display: grid; gap: 5px; }
+.cam-title { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.cam-row { display: flex; align-items: flex-end; gap: 6px; flex-wrap: wrap; }
+.cam-row > .input, .cam-row > select { flex: 1; min-width: 90px; }
+.cam-row .grow { flex: 1; min-width: 120px; }
+.cam-in { display: grid; gap: 3px; flex: 1; min-width: 84px; }
+.cam-in > span:first-child { font-size: 11px; color: var(--text-3); }
+.cam-in .unit-wrap .input { padding-inline-end: 34px; }
+.cam-in .unit-wrap span { inset-inline-end: 9px; }
+.cam-row .btn { flex: none; height: 34px; }
+.cam-joy { display: flex; gap: 14px; align-items: center; }
+.joy-pad { position: relative; width: 132px; height: 132px; flex: none; border-radius: 50%; border: 1px solid var(--border-strong); background: radial-gradient(circle at 50% 50%, var(--surface-3), var(--bg-2)); cursor: grab; touch-action: none; }
+.joy-pad.on { cursor: grabbing; border-color: var(--accent); }
+.joy-pad.off { opacity: .45; cursor: not-allowed; }
+.joy-knob { position: absolute; left: 50%; top: 50%; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 50%; background: var(--accent); box-shadow: 0 2px 8px rgba(0, 0, 0, .4); pointer-events: none; }
+.joy-pad .jx { position: absolute; color: var(--text-3); pointer-events: none; display: flex; }
+.joy-pad .jx svg.i { width: 13px; height: 13px; }
+.joy-pad .jx.u { top: 5px; left: 50%; transform: translateX(-50%); }
+.joy-pad .jx.d { bottom: 5px; left: 50%; transform: translateX(-50%) rotate(180deg); }
+.joy-pad .jx.r { right: 5px; top: 50%; transform: translateY(-50%) rotate(90deg); }
+.joy-pad .jx.l { left: 5px; top: 50%; transform: translateY(-50%) rotate(-90deg); }
+.joy-side { display: grid; gap: 6px; flex: 1; min-width: 0; }
+.joy-val { font-size: 12px; color: var(--text-2); direction: ltr; }
+.cam-log { max-height: 190px; overflow: auto; margin: 0 12px; padding: 6px 8px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); font-family: var(--mono); font-size: 11px; line-height: 1.5; user-select: text; direction: ltr; }
+.cam-log div { display: flex; gap: 6px; }
+.cam-log time { color: var(--text-3); flex: none; }
+.cam-log b { flex: none; }
+.cam-log .tx b { color: var(--accent); }
+.cam-log .rx b, .cam-log .rx span { color: var(--ok); }
+.cam-log span { word-break: break-all; }
+.cam-sec [data-clear] { margin-inline-start: 12px !important; }
+.vw-video.picking, .vw-video.picking canvas { cursor: crosshair; }
+.pick-mark { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border: 2px solid var(--accent); border-radius: 50%; pointer-events: none; animation: pick .9s ease-out forwards; }
+@keyframes pick { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
