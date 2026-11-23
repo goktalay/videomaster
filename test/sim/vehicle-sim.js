@@ -207,10 +207,10 @@ function createSim(opts = {}) {
         send('MAG_CAL_PROGRESS', { compass_id: 0, cal_mask: 1, cal_status: cal.pct < 30 ? 2 : 3, attempt: 1, completion_pct: cal.pct, completion_mask: new Array(10).fill(cal.pct >= 100 ? 255 : 15), direction_x: 0.3, direction_y: -0.5, direction_z: 0.8 });
         return;
       }
-      send('MAG_CAL_REPORT', { compass_id: 0, cal_mask: 1, cal_status: 4, autosaved: cal.autosave ? 1 : 0, fitness: 7.25, ofs_x: 31.5, ofs_y: -120.25, ofs_z: 64, diag_x: 1, diag_y: 1, diag_z: 1, offdiag_x: 0, offdiag_y: 0, offdiag_z: 0 });
+      send('MAG_CAL_REPORT', { compass_id: 0, cal_mask: 1, cal_status: 4, autosaved: cal.autosave ? 1 : 0, fitness: 7.25, ofs_x: 31.5, ofs_y: -120.5, ofs_z: 64, diag_x: 1, diag_y: 1, diag_z: 1, offdiag_x: 0, offdiag_y: 0, offdiag_z: 0 });
       cal.reported++;
       if (cal.autosave || cal.reported > 20) {
-        if (cal.autosave) { params.get('COMPASS_OFS_X').value = 31.5; params.get('COMPASS_OFS_Y').value = -120.25; params.get('COMPASS_OFS_Z').value = 64; }
+        if (cal.autosave) { params.get('COMPASS_OFS_X').value = 31.5; params.get('COMPASS_OFS_Y').value = -120.5; params.get('COMPASS_OFS_Z').value = 64; }
         magStop();
       }
     }, calStepMs);
