@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:">
+  <title>Video Master</title>
+  <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="mastertool.css">
+  <link rel="stylesheet" href="form.css">
+  <link rel="stylesheet" href="stream.css">
+  <link rel="stylesheet" href="viewer.css">
+  <link rel="stylesheet" href="drone.css">
+</head>
+<body>
+  <div class="dr">
+    <header class="vw-top">
+      <div class="vw-title"><span class="vw-ico" id="fwIcon"></span>
+        <div><div class="vw-name" id="name"></div><div class="vw-url" id="link"></div></div></div>
+      <span class="state-chip" id="state"></span>
+      <span class="dr-chips" id="chips"></span>
+      <span style="flex:1"></span>
+      <select class="input dr-mode" id="mode"></select>
+      <button class="btn" id="btnArm"></button>
+      <button class="btn primary" id="btnConnect"></button>
+      <span class="sep"></span>
+      <button class="icon-btn" id="btnLog"></button>
+      <button class="icon-btn" id="btnSide"></button>
+      <button class="icon-btn" id="btnTheme"></button>
+    </header>
+    <div class="dr-main">
+      <nav class="dr-nav" id="nav"></nav>
+      <div class="dr-center">
+        <section class="dr-module" id="module"></section>
+        <div class="split-h" id="splitLog"></div>
+        <section class="dr-log" id="log">
+          <div class="dr-log-bar"><span class="ch-title" id="logTitle"></span>
+            <div class="search dr-log-search"><span class="search-ico" id="logIco"></span><input id="logSearch" spellcheck="false"></div>
+            <div class="seg sm" id="logDir"></div>
+            <button class="btn sm" id="logPause"></button><button class="btn sm" id="logClear"></button>
+            <span style="flex:1"></span><span class="dr-log-count" id="logCount"></span></div>
+          <div class="dr-log-rows" id="logRows"></div>
+        </section>
+      </div>
+      <div class="split-v" id="splitSide"></div>
+      <aside class="dr-side" id="side">
+        <div class="panel-head"><span id="sideTitle"></span></div>
+        <div class="dr-charts" id="charts"></div>
+      </aside>
+    </div>
+  </div>
+  <script src="../i18n/tr.js"></script>
+  <script src="../i18n/en.js"></script>
+  <script src="../i18n/fr.js"></script>
+  <script src="../i18n/de.js"></script>
+  <script src="../i18n/es.js"></script>
+  <script src="../i18n/ar.js"></script>
+  <script src="../i18n/zh.js"></script>
+  <script src="../i18n/ru.js"></script>
+  <script src="../i18n.js"></script>
+  <script src="../drone/schema.js"></script>
+  <script src="ui.js"></script>
+  <script src="settings.js"></script>
+  <script src="dronekit.js"></script>
+  <script src="drone.js"></script>
+</body>
+</html>

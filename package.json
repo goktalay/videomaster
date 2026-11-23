@@ -18,11 +18,13 @@
   },
   "dependencies": {
     "@napi-rs/keyring": "^2.1.1",
-    "ffmpeg-static": "^5.3.0"
+    "ffmpeg-static": "^5.3.0",
+    "serialport": "^12.0.0"
   },
   "devDependencies": {
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
+    "maplibre-gl": "^4.7.1",
     "onnxruntime-web": "^1.31.1",
     "png-to-ico": "^2.1.8",
     "sharp": "^0.33.5"
@@ -41,7 +43,8 @@
     ],
     "asarUnpack": [
       "node_modules/ffmpeg-static/**",
-      "node_modules/@napi-rs/**"
+      "node_modules/@napi-rs/**",
+      "node_modules/@serialport/**"
     ],
     "win": {
       "icon": "build/icon.ico",
@@ -71,6 +74,7 @@
     },
     "portable": {
       "artifactName": "Video-Master-Portable-${version}.exe"
-    }
+    },
+    "npmRebuild": false
   }
 }

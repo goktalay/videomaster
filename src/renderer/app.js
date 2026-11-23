@@ -2,7 +2,7 @@
 
 // Ana pencere: bağlantı kartları (kart üstünde oynatma), klasörler, Yeni (bağlantı formu), ayarlar
 
-let data = { folders: [], connections: [], settings: {} };
+let data = { folders: [], connections: [], drones: [], flights: [], settings: {} };
 let currentFolder = null;
 let query = '';
 let selectedId = null;
@@ -30,14 +30,36 @@ $('#content').addEventListener('mousedown', (e) => {
   if (!e.target.closest('.card, .new-card')) { selectedId = null; updateSelectionUI(); }
 });
 $('#btnNewFolder').onclick = () => newFolder();
-$('#btnNew').onclick = () => newConnection();
+$('#btnNew').onclick = () => newItem();
+
+// Bölümler: Kameralar (akışlar ve yapay görü), Dronlar (uçuş kontrolcüleri), Uçuşlar (dron + kamera + harita)
+let section = 'cameras';
+function newItem() {
+  if (section === 'drones') return editDrone(null);
+  if (section === 'flights') return editFlight(null, data).then((id) => { if (id) window.api.openFlight(id); });
+  return newConnection();
+}
+function paintSections() {
+  $('#sections').innerHTML = [['cameras', 'video'], ['drones', 'upload'], ['flights', 'globe']].map(([s, ic]) => `<button type="button" data-s="${s}" class="${section === s ? 'on' : ''}">${icon(ic)}${esc(t(`sec.${s}`))}</button>`).join('');
+  $('#btnNewFolder').classList.toggle('hidden', section !== 'cameras');
+  $('#crumbs').classList.toggle('hidden', section !== 'cameras');
+  $('#btnNew').title = `${section === 'drones' ? t('dr.newTitle') : section === 'flights' ? t('fl.newTitle') : t('app.newConnection')} (Ctrl+N)`;
+}
+$('#sections').onclick = (e) => {
+  const b = e.target.closest('button');
+  if (!b || b.dataset.s === section) return;
+  section = b.dataset.s;
+  window.api.setSettings({ section });
+  render();
+};
+window.api.onDroneBrief((b) => { droneBriefs.set(b.id, b); const chip = document.querySelector(`.drone-card[data-id="${b.id}"] [data-chip]`); if (chip) chip.innerHTML = droneChip(b.id); });
 $('#search').addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); render(); });
 
 document.addEventListener('keydown', (e) => {
   if (document.querySelector('.modal-backdrop')) return;
   const inInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
   if (e.ctrlKey && e.key.toLowerCase() === 'f') { e.preventDefault(); $('#search').focus(); $('#search').select(); }
-  if (e.ctrlKey && e.key.toLowerCase() === 'n') { e.preventDefault(); newConnection(); }
+  if (e.ctrlKey && e.key.toLowerCase() === 'n') { e.preventDefault(); newItem(); }
   if (e.key === 'Escape' && document.activeElement === $('#search')) { $('#search').value = ''; query = ''; render(); $('#search').blur(); }
   if (e.key === 'Backspace' && !inInput && currentFolder) goFolder(folderById(currentFolder)?.parentId || null);
   const sel = data.connections.find((c) => c.id === selectedId);
@@ -144,8 +166,10 @@ window.api.onUpdateAvailable(({ version }) => {
 });
 
 window.api.onLibraryBackup((file) => toast(t('acct.backupNotice'), { sub: file, timeout: 12000 }));
-Promise.all([window.api.getStore(), window.api.streamStates()]).then(([d, list]) => {
+Promise.all([window.api.getStore(), window.api.streamStates(), window.api.droneBriefs()]).then(([d, list, briefs]) => {
   data = d;
+  if (['drones', 'flights'].includes(d.settings.section)) section = d.settings.section;
+  for (const b of briefs) droneBriefs.set(b.id, b);
   for (const st of list) states.set(st.id, st);
   render();
   paintThemeBtn();
@@ -181,6 +205,8 @@ function updateSelectionUI() {
 }
 
 function paintStats() {
+  if (section === 'drones') { $('#stats').textContent = t('dr.stats', { n: data.drones.length }); return; }
+  if (section === 'flights') { $('#stats').textContent = t('fl.stats', { n: data.flights.length }); return; }
   const n = data.connections.length;
   const live = [...states.values()].filter((s) => s.running).length;
   $('#stats').textContent = n ? t('app.stats', { c: n, f: data.folders.length }) + (live ? ` · ${t('app.liveCount', { n: live })}` : '') : t('app.welcome');
@@ -188,6 +214,13 @@ function paintStats() {
 
 // --- Çizim -------------------------------------------------------------------
 function render() {
+  paintSections();
+  if (section !== 'cameras') {
+    players.clear();
+    renderSection($('#grid'), section, data, query);
+    paintStats();
+    return;
+  }
   if (currentFolder && !folderById(currentFolder)) currentFolder = null;
   renderCrumbs();
   renderGrid();

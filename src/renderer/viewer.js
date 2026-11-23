@@ -3,7 +3,8 @@
 // Akış penceresi: video, sağda açılır kapanır "Akış ayarları" paneli, altta akış verisi (HEX / ASCII / paketler),
 // yanında akış bilgisi (kodek vb.) ve veri hızı grafiği; kayıt, anlık görüntü, ses.
 
-const ID = new URLSearchParams(location.search).get('id');
+// Uçuş penceresinde (flight.html) kamera kimliği "cam" ile gelir; akış penceresinde "id"
+const ID = new URLSearchParams(location.search).get('cam') || new URLSearchParams(location.search).get('id');
 const $ = (s) => document.querySelector(s);
 
 let conn = null;
@@ -73,6 +74,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 function toggleFullscreen() {
+  if (window.VW_FULLSCREEN) return window.VW_FULLSCREEN(); // uçuş penceresi tam ekranı kendi yönetir
   if (document.fullscreenElement) document.exitFullscreen();
   else $('#video').requestFullscreen().catch(() => {});
 }
@@ -191,7 +193,7 @@ function applyConn() {
   $('#protoIcon').innerHTML = icon(P.icon);
   $('#name').textContent = conn.name;
   $('#url').textContent = conn.display;
-  document.title = `${conn.name} — Video Master`;
+  if (!window.VW_EMBEDDED) document.title = `${conn.name} — Video Master`;
   player.fit = conn.fit || 'contain';
   player.draw();
   if (vision) vision.draw();
@@ -497,7 +499,7 @@ $('#chartUnit').onclick = (e) => { const b = e.target.closest('button'); if (!b)
 // --- Başlangıç ------------------------------------------------------------------
 (async () => {
   const [store, c] = await Promise.all([window.api.getStore(), window.api.getConnection(ID)]);
-  if (!c) return window.close();
+  if (!c) return window.VW_EMBEDDED ? null : window.close();
   settings = store.settings;
   conn = c;
   applyConn();

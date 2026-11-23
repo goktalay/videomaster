@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: vdm: https:; connect-src 'self' https: data: blob:">
+  <title>Video Master</title>
+  <link rel="stylesheet" href="../vendor/maplibre/maplibre-gl.css">
+  <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="mastertool.css">
+  <link rel="stylesheet" href="form.css">
+  <link rel="stylesheet" href="stream.css">
+  <link rel="stylesheet" href="viewer.css">
+  <link rel="stylesheet" href="drone.css">
+  <link rel="stylesheet" href="flight.css">
+</head>
+<body>
+  <div class="vw fl">
+    <header class="vw-top">
+      <div class="vw-title"><span class="vw-ico" id="flIcon"></span>
+        <div><div class="vw-name" id="flName"></div><div class="vw-url" id="flSub"></div></div></div>
+      <span class="state-chip" id="drState"></span>
+      <span class="dr-chips" id="drChips"></span>
+      <span style="flex:1"></span>
+      <div class="seg" id="layouts"></div>
+      <button class="icon-btn" id="btnHud"></button>
+      <span class="sep"></span>
+      <span class="fl-cam" id="camTools">
+        <span class="state-chip" id="state"></span>
+        <button class="btn primary" id="btnPlay"></button>
+        <button class="btn rec" id="btnRec"></button>
+        <button class="btn ghost" id="btnShot"></button>
+        <div class="vol"><button class="icon-btn" id="btnMute"></button><input type="range" id="volume" min="0" max="200" step="1"></div>
+        <button class="icon-btn" id="btnFit"></button>
+        <button class="icon-btn" id="btnFull"></button>
+        <button class="icon-btn" id="btnBottom"></button>
+        <button class="icon-btn" id="btnPanel"></button>
+      </span>
+      <button class="icon-btn" id="btnTheme"></button>
+      <span class="hidden"><span id="protoIcon"></span><span id="name"></span><span id="url"></span></span>
+    </header>
+
+    <div class="vw-main">
+      <div class="vw-left">
+        <div class="fl-stage" id="stage" data-layout="mapPip">
+          <div class="fl-pane fl-map" id="mapPane">
+            <div id="map"></div>
+            <div class="fl-map-tools" id="mapTools"></div>
+            <div class="fl-map-note hidden" id="mapNote"></div>
+          </div>
+          <section class="vw-video fl-pane" id="video">
+            <canvas id="canvas"></canvas>
+            <canvas id="visionCanvas"></canvas>
+            <div class="vw-overlay" id="overlay"></div>
+            <div class="vw-osd" id="osd"></div>
+          </section>
+          <button class="fl-swap icon-btn" id="btnSwap"></button>
+          <canvas id="hud"></canvas>
+        </div>
+        <div class="split-h" id="splitBottom"></div>
+        <section class="vw-bottom" id="bottom">
+          <div class="vw-hex" id="hex"></div>
+          <div class="split-v" id="splitInfo"></div>
+          <aside class="vw-side" id="side">
+            <div class="chart-head"><span class="ch-title" id="chartTitle"></span><b id="chartNow"></b>
+              <span style="flex:1"></span>
+              <div class="seg sm" id="chartRange"></div><div class="seg sm" id="chartUnit"></div></div>
+            <div id="chart"></div>
+            <div class="vw-info" id="info"></div>
+          </aside>
+        </section>
+      </div>
+      <div class="split-v" id="splitPanel"></div>
+      <aside class="vw-panel" id="panel">
+        <div class="panel-head"><span id="panelTitle"></span><span style="flex:1"></span><button class="icon-btn" id="panelClose"></button></div>
+        <div class="seg panel-tabs hidden" id="panelTabs"></div>
+        <div class="panel-body" id="panelBody"></div>
+        <div class="panel-body hidden" id="camBody"></div>
+        <div class="panel-body hidden" id="visBody"></div>
+        <div class="panel-foot" id="panelFoot"><span class="panel-note" id="panelNote"></span><span style="flex:1"></span>
+          <button class="btn sm" id="panelRevert"></button><button class="btn sm primary" id="panelApply"></button></div>
+      </aside>
+    </div>
+  </div>
+
+  <script src="../i18n/tr.js"></script>
+  <script src="../i18n/en.js"></script>
+  <script src="../i18n/fr.js"></script>
+  <script src="../i18n/de.js"></script>
+  <script src="../i18n/es.js"></script>
+  <script src="../i18n/ar.js"></script>
+  <script src="../i18n/zh.js"></script>
+  <script src="../i18n/ru.js"></script>
+  <script src="../models/cpdd075cct.js"></script>
+  <script src="../models/skydroid.js"></script>
+  <script src="../models/defs.js"></script>
+  <script src="../i18n.js"></script>
+  <script src="../vision/catalog.js"></script>
+  <script src="../schema.js"></script>
+  <script src="../drone/schema.js"></script>
+  <script src="../vendor/maplibre/maplibre-gl-csp.js"></script>
+  <script src="ui.js"></script>
+  <script src="settings.js"></script>
+  <script src="player.js"></script>
+  <script src="chart.js"></script>
+  <script src="hexview.js"></script>
+  <script src="connform.js"></script>
+  <script src="campanel.js"></script>
+  <script src="vision.js"></script>
+  <script src="dronekit.js"></script>
+  <script src="hud.js"></script>
+  <script src="flightpre.js"></script>
+  <script src="viewer.js"></script>
+  <script src="flight.js"></script>
+</body>
+</html>

@@ -12,6 +12,7 @@ const { createSso } = require('./sso');
 const { StreamSession } = require('./stream/session');
 const CAMERAS = require('./models');
 const VISION = require('./vision/catalog');
+const DRONE = require('./drone/schema');
 const { createModels } = require('./vision/models');
 
 // Arayüz dili: ayarlarda seçilen ya da sistem dili (desteklenmiyorsa İngilizce)
@@ -53,6 +54,8 @@ const storePath = () => userDir('store.json');
 
 const defaultStore = () => ({
   folders: [],      // { id, name, parentId }
+  drones: [],       // { id, name, firmware, linkType, ... } (src/drone/schema.js)
+  flights: [],      // { id, name, droneId, cameraId, layout }
   connections: [],  // bağlantı tanımları (senkronlanır); şifreler DPAPI ile şifreli tutulur
   local: {},        // cihaza özgü: bağlantıId -> { info }
   syncMeta: {},     // senkron: öğe id -> { kind, hash, updated_at, rev, device, deleted }
@@ -149,7 +152,7 @@ function summarize(info) {
 }
 
 function publicStore() {
-  return { folders: store.folders, settings: store.settings, connections: store.connections.map(publicConn) };
+  return { folders: store.folders, settings: store.settings, connections: store.connections.map(publicConn), drones: store.drones, flights: store.flights };
 }
 
 function broadcast(channel, data) {
@@ -180,8 +183,10 @@ function initAccount() {
     encrypt,
     decrypt,
     // Senkron katmanı bağlantıları şifreleri çözülmüş görür (blob uçtan uca şifrelenir)
-    getStore: () => ({ folders: store.folders, settings: store.settings, syncMeta: store.syncMeta, connections: store.connections.map(plainConn) }),
-    replaceLibrary: ({ folders, connections, settings, syncMeta }) => {
+    getStore: () => ({ folders: store.folders, settings: store.settings, syncMeta: store.syncMeta, connections: store.connections.map(plainConn), drones: store.drones, flights: store.flights }),
+    replaceLibrary: ({ folders, connections, drones, flights, settings, syncMeta }) => {
+      store.drones = drones || [];
+      store.flights = flights || [];
       const prevLang = currentLang();
       const before = new Map(store.connections.map((c) => [c.id, JSON.stringify(plainConn(c))]));
       store.folders = folders;
@@ -211,7 +216,7 @@ function initAccount() {
         file = userDir(`store-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
         fs.writeFileSync(file, JSON.stringify(store, null, 2), 'utf8');
       }
-      Object.assign(store, { folders: [], connections: [], local: {}, syncMeta: {} });
+      Object.assign(store, { folders: [], connections: [], drones: [], flights: [], local: {}, syncMeta: {} });
       writeStore();
       return file;
     },
@@ -461,10 +466,7 @@ function getSession(id) {
   });
   s.on('stats', (st) => broadcast('stream:stats', st));
   s.on('frame', (frame) => deliverFrame(id, frame));
-  s.on('audio', (pcm) => {
-    const w = viewers.get(id);
-    if (w && !w.isDestroyed()) w.webContents.send('stream:audio', { id, data: pcm });
-  });
+  s.on('audio', (pcm) => { for (const w of fullWindows(id)) w.webContents.send('stream:audio', { id, data: pcm }); });
   s.on('error', () => {});
   sessions.set(id, s);
   return s;
@@ -479,10 +481,22 @@ function dropSession(id) {
 }
 
 function stopAllSessions() {
+  if (droneSessions) droneSessions.closeAll();
+  droneWindows.clear();
+  flightWindows.clear();
   for (const id of [...cameras.keys()]) camClose(id);
   for (const s of sessions.values()) s.stop().catch(() => {});
   sessions.clear();
   subscribers.clear();
+}
+
+// Bir kamerayı tam çözünürlükte gösteren pencereler: akış penceresi ve o kamerayı kullanan açık uçuş pencereleri
+function fullWindows(id) {
+  const out = [];
+  const v = viewers.get(id);
+  if (v && !v.isDestroyed()) out.push(v);
+  for (const f of store.flights) { if (f.cameraId !== id) continue; const w = flightWindows.get(f.id); if (w && !w.isDestroyed()) out.push(w); }
+  return out;
 }
 
 async function playSession(id, origin) {
@@ -490,7 +504,7 @@ async function playSession(id, origin) {
   const s = getSession(id);
   if (origin === 'card') s.origin = 'card';
   else if (!s.running) s.origin = 'viewer';
-  await s.start(viewers.has(id) ? 'full' : 'card');
+  await s.start(fullWindows(id).length ? 'full' : 'card');
   return s.snapshot();
 }
 
@@ -667,7 +681,8 @@ function saveConnection(form) {
   saveStore();
   broadcastStore();
   const w = viewers.get(id);
-  if (w && !w.isDestroyed()) { w.setTitle(`${c.name} — ${APP_NAME}`); w.webContents.send('connection:changed', publicConn(next)); }
+  if (w && !w.isDestroyed()) w.setTitle(`${c.name} — ${APP_NAME}`);
+  for (const fw of fullWindows(id)) fw.webContents.send('connection:changed', publicConn(next));
   // Çalışan oturum: ağ ya da çözme ayarı değiştiyse yeni ayarlarla yeniden bağlan
   const s = sessions.get(id);
   if (s && before) {
@@ -785,7 +800,7 @@ ipcMain.handle('folder:delete', (_e, id) => {
 });
 
 // Görünüm ayarları (panel boyutları vb.) sessizce kaydedilir, yayınlanmaz ve senkronlanmaz
-const QUIET_SETTINGS = ['visionModels', 'panelTab', 'panelOpen', 'panelWidth', 'bottomOpen', 'bottomHeight', 'infoWidth', 'chartRange', 'cardSize', 'openAtLogin', 'minimizeToTray', 'closeToTray', 'trayHintShown', 'recordDir'];
+const QUIET_SETTINGS = ['flightHud', 'flightFollow', 'flightStyle', 'flightTerrain', 'droneLogOpen', 'droneSideOpen', 'droneLogHeight', 'droneSideWidth', 'droneModule', 'section', 'visionModels', 'panelTab', 'panelOpen', 'panelWidth', 'bottomOpen', 'bottomHeight', 'infoWidth', 'chartRange', 'cardSize', 'openAtLogin', 'minimizeToTray', 'closeToTray', 'trayHintShown', 'recordDir'];
 
 ipcMain.handle('settings:set', (_e, patch) => {
   Object.assign(store.settings, patch);
@@ -842,7 +857,7 @@ ipcMain.handle('stream:subscribe', (event, { id, on }) => {
   let subs = subscribers.get(id);
   if (!subs) { subs = new Map(); subscribers.set(id, subs); }
   // Ana pencere (kartlar) saniyede en çok ~10 kare alır; akış penceresi sınırsız
-  const isViewer = viewers.get(id) && viewers.get(id).webContents === wc;
+  const isViewer = fullWindows(id).some((w) => w.webContents === wc);
   subs.set(wc.id, { wc, busy: false, pending: null, minGap: isViewer ? 0 : 90, last: 0, sentAt: 0 });
   const frame = lastFrames.get(id);
   const s = sessions.get(id);
@@ -918,6 +933,181 @@ ipcMain.handle('tap:save', async (event, { id, base, length }) => {
   await fs.promises.writeFile(res.filePath, data);
   return res.filePath;
 });
+
+// ---------------------------------------------------------------------------
+// Dronlar ve uçuşlar: kayıtlar, pencereler, araç oturumları (src/drone)
+// ---------------------------------------------------------------------------
+const droneWindows = new Map();  // dronId → pencere
+const flightWindows = new Map(); // uçuşId → pencere
+const getDrone = (id) => store.drones.find((d) => d.id === id) || null;
+const getFlight = (id) => store.flights.find((f) => f.id === id) || null;
+
+// Bir dronun olaylarını ilgili pencerelere dağıtır: dron penceresi + o dronu kullanan uçuş pencereleri
+function droneEmit(channel, payload) {
+  const targets = [droneWindows.get(payload.id), ...store.flights.filter((f) => f.droneId === payload.id).map((f) => flightWindows.get(f.id))];
+  for (const w of targets) if (w && !w.isDestroyed()) w.webContents.send(channel, payload);
+  if (channel === 'drone:state' && mainWindow && !mainWindow.isDestroyed()) {
+    const st = payload.state || {};
+    mainWindow.webContents.send('drone:brief', { id: payload.id, connected: !!st.connected, linked: !!st.linked, armed: !!st.armed, mode: st.mode || '', error: st.error || null });
+  }
+}
+
+let droneSessions = null;
+function drones() {
+  if (droneSessions) return droneSessions;
+  const { createDroneSessions } = require('./drone/sessions');
+  const paramCache = new Map();
+  droneSessions = createDroneSessions({
+    getDrone,
+    emit: droneEmit,
+    createVehicle: (d) => {
+      if (d.firmware === 'betaflight') return null; // MSP sürücüsü sonraki aşamada
+      const { MavVehicle } = require('./drone/vehicle');
+      return new MavVehicle(DRONE.linkConfig(d), { gcsSysid: d.gcsSysid, streamRate: d.streamRate, firmwareHint: d.firmware === 'px4' ? 'px4' : 'ardupilot' });
+    },
+    paramDefs: (firmware, vehicle) => {
+      const key = `${firmware}/${vehicle}`;
+      if (!paramCache.has(key)) { try { paramCache.set(key, require('./drone/paramdefs').load(firmware, vehicle)); } catch { paramCache.set(key, null); } }
+      const defs = paramCache.get(key);
+      return defs ? { lookup: defs.lookup, groupOf: require('./drone/paramdefs').groupOf } : null;
+    },
+  });
+  return droneSessions;
+}
+
+function saveDrone(form) {
+  const prev = form.id ? getDrone(form.id) : null;
+  const d = DRONE.normalize(form);
+  const bad = DRONE.validate(d);
+  if (bad.length) return { ok: false, invalid: bad };
+  const id = prev ? prev.id : uid();
+  const next = { ...d, id, createdAt: prev ? prev.createdAt : Date.now() };
+  if (prev) store.drones[store.drones.indexOf(prev)] = next; else store.drones.push(next);
+  saveStore();
+  broadcastStore();
+  const w = droneWindows.get(id);
+  if (w && !w.isDestroyed()) { w.setTitle(`${d.name} — ${APP_NAME}`); w.webContents.send('drone:changed', next); }
+  // Bağlantı ayarı değiştiyse açık oturum yeni ayarla yeniden kurulur
+  if (prev && droneSessions && droneSessions.get(id) && JSON.stringify(DRONE.linkConfig(prev)) + prev.firmware !== JSON.stringify(DRONE.linkConfig(next)) + next.firmware) {
+    droneSessions.close(id);
+    droneSessions.connect(id);
+  }
+  return { ok: true, id };
+}
+
+function openSubWindow(map, id, page, title, size) {
+  if (!account || !account.isLoggedIn()) return;
+  const existing = map.get(id);
+  if (existing && !existing.isDestroyed()) { if (existing.isMinimized()) existing.restore(); existing.focus(); return existing; }
+  const win = new BrowserWindow({ width: size[0], height: size[1], minWidth: 1000, minHeight: 640, backgroundColor: windowBg(), title: `${title} — ${APP_NAME}`, icon: ICON, autoHideMenuBar: true, webPreferences });
+  win.setMenuBarVisibility(false);
+  win.loadURL(`vdm://app/renderer/${page}${page.includes('?') ? '' : '?'}id=${encodeURIComponent(id)}`);
+  map.set(id, win);
+  return win;
+}
+
+// Dron penceresi kapanınca, o dronu kullanan açık uçuş yoksa bağlantı kesilir
+function releaseDrone(droneId) {
+  const usedByFlight = store.flights.some((f) => f.droneId === droneId && flightWindows.has(f.id));
+  if (!droneWindows.has(droneId) && !usedByFlight && droneSessions) droneSessions.close(droneId);
+}
+
+function openDrone(id) {
+  const d = getDrone(id);
+  if (!d) return;
+  const win = openSubWindow(droneWindows, id, 'drone.html', d.name, [1500, 920]);
+  if (win && !win.droneBound) { win.droneBound = true; win.on('closed', () => { droneWindows.delete(id); releaseDrone(id); }); }
+}
+
+function openFlight(id) {
+  const f = getFlight(id);
+  if (!f) return;
+  const win = openSubWindow(flightWindows, id, `flight.html?cam=${f.cameraId && getConn(f.cameraId) ? encodeURIComponent(f.cameraId) : ''}&`, f.name, [1600, 960]);
+  if (win && !win.flightBound) {
+    win.flightBound = true;
+    win.on('closed', () => {
+      flightWindows.delete(id);
+      if (f.droneId) releaseDrone(f.droneId);
+      // Kamera akışı yalnızca bu uçuş için açıldıysa durdurulur
+      const s = f.cameraId && sessions.get(f.cameraId);
+      if (s && !viewers.has(f.cameraId)) { dropSubscriber(f.cameraId); if (s.running && s.origin !== 'card' && !s.rec.wanted) s.stop().catch(() => {}); else if (s.running) s.setProfile('card').catch(() => {}); }
+      camClose(f.cameraId);
+    });
+  }
+}
+
+ipcMain.handle('drone:save', (_e, form) => saveDrone(form || {}));
+ipcMain.handle('drone:get', (_e, id) => getDrone(id));
+ipcMain.handle('drone:delete', async (_e, id) => {
+  const d = getDrone(id);
+  if (!d) return;
+  const w = droneWindows.get(id);
+  if (w && !w.isDestroyed()) w.destroy();
+  if (droneSessions) droneSessions.close(id);
+  store.drones = store.drones.filter((x) => x.id !== id);
+  for (const f of store.flights) if (f.droneId === id) f.droneId = null;
+  saveStore();
+  broadcastStore();
+});
+ipcMain.handle('drone:duplicate', (_e, id) => {
+  const d = getDrone(id);
+  if (!d) return;
+  store.drones.push({ ...d, id: uid(), name: d.name + t('main.copySuffix'), createdAt: Date.now() });
+  saveStore();
+  broadcastStore();
+});
+ipcMain.handle('drone:open', (_e, id) => openDrone(id));
+ipcMain.handle('drone:ports', async () => { try { return await require('./drone/link').listSerialPorts(); } catch { return []; } });
+ipcMain.handle('drone:connect', (_e, id) => drones().connect(id));
+ipcMain.handle('drone:disconnect', (_e, id) => { drones().close(id); return null; });
+ipcMain.handle('drone:state', (_e, id) => drones().state(id));
+ipcMain.handle('drone:recent', (_e, id) => drones().recent(id));
+ipcMain.handle('drone:call', (_e, { id, method, args }) => drones().call(id, String(method), args));
+ipcMain.handle('drone:params', (_e, id) => drones().params(id, currentLang()));
+ipcMain.handle('drone:briefs', () => (droneSessions ? store.drones.map((d) => { const st = droneSessions.state(d.id); return st ? { id: d.id, connected: !!st.connected, linked: !!st.linked, armed: !!st.armed, mode: st.mode || '' } : null; }).filter(Boolean) : []));
+// Parametre dosyası (Mission Planner biçimi: AD,DEĞER satırları)
+ipcMain.handle('drone:paramsExport', async (event, { id, text }) => {
+  const d = getDrone(id);
+  const res = await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), { title: t('dr.paramSave'), defaultPath: path.join(app.getPath('documents'), `${safeName(d ? d.name : 'drone')}.param`), filters: [{ name: 'Parameters', extensions: ['param', 'parm', 'txt'] }] });
+  if (res.canceled || !res.filePath) return null;
+  await fs.promises.writeFile(res.filePath, String(text || ''));
+  return res.filePath;
+});
+ipcMain.handle('drone:paramsImport', async (event) => {
+  const res = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), { title: t('dr.paramLoad'), properties: ['openFile'], filters: [{ name: 'Parameters', extensions: ['param', 'parm', 'params', 'txt'] }] });
+  if (res.canceled || !res.filePaths.length) return null;
+  try { return { file: res.filePaths[0], text: (await fs.promises.readFile(res.filePaths[0], 'utf8')).slice(0, 2000000) }; } catch { return null; }
+});
+
+function saveFlight(form) {
+  const prev = form.id ? getFlight(form.id) : null;
+  const f = DRONE.normalizeFlight({ ...(prev || {}), ...form });
+  if (!f.name) return { ok: false, invalid: ['name'] };
+  if (!f.droneId || !getDrone(f.droneId)) return { ok: false, invalid: ['droneId'] };
+  if (f.cameraId && !getConn(f.cameraId)) f.cameraId = null;
+  const id = prev ? prev.id : uid();
+  const next = { ...f, id, createdAt: prev ? prev.createdAt : Date.now() };
+  if (prev) store.flights[store.flights.indexOf(prev)] = next; else store.flights.push(next);
+  saveStore();
+  broadcastStore();
+  const w = flightWindows.get(id);
+  if (w && !w.isDestroyed()) {
+    // Dron ya da kamera değiştiyse pencere yeni seçimle yeniden yüklenir
+    if (prev && (prev.droneId !== next.droneId || prev.cameraId !== next.cameraId)) w.loadURL(`vdm://app/renderer/flight.html?cam=${next.cameraId ? encodeURIComponent(next.cameraId) : ''}&id=${encodeURIComponent(id)}`);
+    else w.webContents.send('flight:changed', next);
+  }
+  return { ok: true, id };
+}
+ipcMain.handle('flight:save', (_e, form) => saveFlight(form || {}));
+ipcMain.handle('flight:get', (_e, id) => getFlight(id));
+ipcMain.handle('flight:delete', (_e, id) => {
+  const w = flightWindows.get(id);
+  if (w && !w.isDestroyed()) w.destroy();
+  store.flights = store.flights.filter((x) => x.id !== id);
+  saveStore();
+  broadcastStore();
+});
+ipcMain.handle('flight:open', (_e, id) => openFlight(id));
 
 // ---------------------------------------------------------------------------
 // Yapay görü: modeller (indirme, kullanıcı modelleri), kameraya özel ayarlar, ayar dosyası
@@ -1003,8 +1193,7 @@ ipcMain.handle('vision:import', async (event, id) => {
 // Kamera kontrolü (modele özel sürücüler: src/models). Sürücü akış penceresiyle yaşar.
 // ---------------------------------------------------------------------------
 function camSend(id, channel, data) {
-  const w = viewers.get(id);
-  if (w && !w.isDestroyed()) w.webContents.send(channel, { id, ...data });
+  for (const w of fullWindows(id)) w.webContents.send(channel, { id, ...data });
 }
 
 async function camOpen(id) {
