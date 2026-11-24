@@ -53,7 +53,7 @@
 .dr-msgs div { display: flex; gap: 8px; }
 .dr-msgs time { color: var(--text-3); font-family: var(--mono); font-size: 11px; flex: none; }
 .dr-msgs .err span { color: var(--err); } .dr-msgs .warn span { color: var(--warn); }
-.dr-actions { max-width: 420px; }
+.dr-actions { display: flex; }
 .dr-note, .dr-warn { display: flex; gap: 10px; padding: 12px; border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--warn) 7%, transparent); font-size: 12.5px; }
 .dr-note svg.i, .dr-warn svg.i { color: var(--warn); flex: none; }
 .dr-note p, .dr-warn p { margin: 3px 0 0; color: var(--text-2); line-height: 1.5; }
@@ -76,7 +76,8 @@
 .dr-p-edit { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .dr-p-edit .input { height: 32px; }
 .dr-p-edit > .input, .dr-p-edit > .unit-wrap, .dr-p-edit > .num-slider { flex: 1; min-width: 120px; }
-.dr-p-edit .num-slider > .unit-wrap, .dr-p-edit .num-slider > input[type=number] { width: 112px; }
+.dr-p-edit .num-slider > .unit-wrap, .dr-p-edit .num-slider > input[type=number] { width: 150px; }
+.dr-p-edit .unit-wrap .input { padding-inline-end: 70px; }
 .dr-p-edit .unit-wrap span { top: 8px; }
 .dr-p-desc { font-size: 12px; color: var(--text-2); line-height: 1.5; display: grid; gap: 3px; user-select: text; }
 .dr-p-desc small { color: var(--text-3); font-size: 11.5px; }

@@ -44,7 +44,7 @@ class FlightHud {
     cur.alt = lerp(cur.alt, num(tg.altRel));
     cur.climb = lerp(cur.climb, num(tg.climb));
 
-    const u = Math.min(w, h) / 100; // ölçü birimi
+    const u = Math.min(w / 145, h / 100); // ölçü birimi: şeritler dar alanda da sığsın
     const cx = w / 2; const cy = h / 2;
     const FG = '#e8fff4'; const ACC = '#5eead4'; const WARN = '#fbbf24'; const BAD = '#f87171';
     g.lineCap = 'round'; g.lineJoin = 'round';
@@ -108,7 +108,7 @@ class FlightHud {
         const major = Math.round(v / step) % 2 === 0;
         const tx = side < 0 ? left + tw : left;
         g.beginPath(); g.moveTo(tx, y); g.lineTo(tx - side * (major ? 2.2 : 1.2) * u, y); g.stroke();
-        if (major) text(String(Math.round(v * 10) / 10), side < 0 ? left + tw - 3 * u : left + 3 * u, y, side < 0 ? 'right' : 'left');
+        if (major && Math.abs(y - cy) > 4.2 * u) text(String(Math.round(v * 10) / 10), side < 0 ? left + tw - 3 * u : left + 3 * u, y, side < 0 ? 'right' : 'left');
       }
       g.restore();
       // değer kutusu

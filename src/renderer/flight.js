@@ -124,7 +124,8 @@
     let tileErrors = 0;
     map.on('error', () => { if (++tileErrors === 6) { el('#mapNote').textContent = t('fl.mapOffline'); el('#mapNote').classList.remove('hidden'); } });
     map.on('dragstart', () => { if (prefs.follow) { prefs.follow = false; paintTools(); } });
-    map.on('load', () => {
+    // Katmanlar stil yüklenince eklenir (karolar inmese de dron ve izi çizilsin)
+    map.once('style.load', () => {
       mapReady = true;
       const empty = { type: 'FeatureCollection', features: [] };
       map.addSource('track', { type: 'geojson', data: empty });

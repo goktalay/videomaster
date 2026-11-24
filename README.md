@@ -46,6 +46,13 @@ paneli açılır (joystick, takip, yakınlaştırma, kayıt, termal palet, lazer
 Desteklenen modeller: **CPDD075CCT**, **Skydroid C10 / C10 Pro, C12, C13, C20**. Ayrıntı, kaynaklar ve yeni model ekleme:
 [docs/kamera-modelleri.md](docs/kamera-modelleri.md).
 
+## Dronlar ve uçuşlar
+
+Ana ekran **Kameralar**, **Dronlar** ve **Uçuşlar** bölümlerine ayrılır. Dronlar bölümünde uçuş kontrolcüsüne seri port, TCP,
+UDP ya da UDPIN ile bağlanılır (ArduPilot, PX4, SITL): parametre ağacı (Türkçe açıklamalarla), motor testi, kalibrasyonlar,
+telemetri grafikleri ve aranabilir haberleşme günlüğü. Uçuşlar bölümünde dron ve kamera birlikte izlenir: 3B harita, kamera
+yerleşimleri ve HUD. Ayrıntı: [docs/dronlar-ve-ucuslar.md](docs/dronlar-ve-ucuslar.md).
+
 ## Yapay görü
 
 Akış penceresindeki **Yapay görü** panelinde poz, insan, çoklu insan, yazı okuma (OCR), plaka, araç, hava aracı, hayvan ve nesne

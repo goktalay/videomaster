@@ -562,7 +562,7 @@ test('vehicle: sahte ArduCopter ile uçtan uca (TCP)', async (t) => {
     const txHb = tx.find((e) => e.name === 'HEARTBEAT');
     assert.deepStrictEqual([txHb.sysid, txHb.compid], [255, 190]);
     const att = rx.find((e) => e.name === 'ATTITUDE');
-    assert.match(att.text, /roll=-?\d+(\.\d{1,4})?(e-\d+)? /);
+    assert.match(att.text, / roll=-?\d+(\.\d{1,6})?(e-\d+)? pitch=/);
     const arm = tx.find((e) => e.name === 'COMMAND_LONG' && /command=400/.test(e.text));
     assert.match(arm.text, /param1=1 /);
     assert.ok(log.every((e) => typeof e.t === 'number' && typeof e.text === 'string'));

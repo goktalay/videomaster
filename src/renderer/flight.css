@@ -32,3 +32,6 @@
 .fl #drState { cursor: pointer; }
 .fl #layouts button { padding: 6px 9px; }
 .fl-stage:fullscreen { width: 100vw; height: 100vh; }
+
+/* HUD küçük pencerenin (PiP) altında kalmasın: kalan alana ortalanır */
+.fl-stage[data-layout="mapPip"] > #hud, .fl-stage[data-layout="videoPip"] > #hud { width: calc(100% - clamp(240px, 27%, 520px) - 28px); }

@@ -71,7 +71,7 @@
   }
 
   // Sürücüye verilen bağlantı ayarı (src/drone/link.js)
-  const linkConfig = (d) => ({ type: d.linkType, serialPort: d.serialPort, baud: Number(d.baud), host: d.host, port: d.port, localPort: d.linkType === 'udpin' ? d.localPort : 0 });
+  const linkConfig = (d) => ({ retryInitial: true, type: d.linkType, serialPort: d.serialPort, baud: Number(d.baud), host: d.host, port: d.port, localPort: d.linkType === 'udpin' ? d.localPort : 0 });
 
   // Uçuş: { name, droneId, cameraId, layout }
   const LAYOUTS = ['mapPip', 'videoPip', 'split', 'map', 'video'];

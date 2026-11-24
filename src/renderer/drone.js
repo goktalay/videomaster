@@ -148,7 +148,7 @@ modules.overview = {
       card(t('dr.c.link'), esc(st.stats ? `${st.stats.msgRate || 0} ${t('dr.c.msgRate')}` : '—'), st.stats ? `${esc(t('dr.c.lost'))} ${st.stats.lost || 0}${x.rssi ? ` · RSSI ${x.rssi}` : ''}` : ''),
     ].join('');
     const list = (st.sensors && st.sensors.list) || [];
-    host.querySelector('[data-sensors]').innerHTML = list.filter((s) => s.present).map((s) => `<span class="cam-test ${!s.enabled ? '' : s.healthy ? 'ok' : 'bad'}">${icon(!s.enabled ? 'pause' : s.healthy ? 'check' : 'x')}${esc(s.name)}</span>`).join('') || `<div class="empty-note">${esc(t('dr.noData'))}</div>`;
+    host.querySelector('[data-sensors]').innerHTML = list.filter((s) => s.present).map((s) => `<span class="cam-test ${!s.enabled ? '' : s.healthy ? 'ok' : 'bad'}">${icon(!s.enabled ? 'pause' : s.healthy ? 'check' : 'x')}${esc(String(s.name).replace(/^SENSOR_/, '').replace(/_/g, ' '))}</span>`).join('') || `<div class="empty-note">${esc(t('dr.noData'))}</div>`;
   },
   messages() {
     const box = this.host && this.host.isConnected && this.host.querySelector('[data-msgs]');
@@ -194,7 +194,7 @@ modules.params = {
     tree.addEventListener('change', (e) => this.edited(e));
     tree.addEventListener('click', (e) => this.clicked(e));
     this.paint();
-    if (!P.list.length && st.linked && !P.loading) this.reload(true);
+    if (!P.list.length && st.linked && !P.loading) this.reload(false);
   },
 
   async reload(fetchIfEmpty) {
@@ -567,7 +567,11 @@ function applyState(next) {
   if (moduleId === 'overview') modules.overview.update();
   else if (moduleId === 'motors') modules.motors.paint();
   else if (moduleId === 'calib' && (CAL.rc || true)) modules.calib.paint();
-  if (st.linked && !wasLinked && moduleId === 'params' && !P.list.length) modules.params.reload(true);
+  // Bağlanınca parametreler bir kez okunur (gövde yapısı ve motor düzeni de bunlardan çıkar)
+  if (st.linked && !wasLinked && st.params && !st.params.received && !st.params.loading && !P.loading) {
+    P.loading = true; P.progress = { received: 0, total: 0 };
+    call('fetchParams').then(() => { P.loading = false; P.progress = null; modules.params.reload(false); });
+  }
 }
 
 window.api.onDroneState((m) => { if (m.id === ID) applyState(m.state); });

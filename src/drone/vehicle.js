@@ -255,7 +255,7 @@ class MavVehicle extends EventEmitter {
       this._fail(err);
       this._touch();
     });
-    link.on('open', () => { if (this.link === link) { this.error = null; this._sendHeartbeat(); this._touch(true); } });
+    link.on('open', () => { if (this.link === link) { this.error = null; this.parser.reset(); this._sendHeartbeat(); this._touch(true); } }); // yeniden bağlanınca yarım çerçeve kalmasın
     link.on('close', () => {
       if (this.link !== link) return;
       this._setLinked(false);

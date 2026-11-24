@@ -298,6 +298,9 @@ function createSim(opts = {}) {
   }
 
   function sendVersion() {
+    // Gerçek ArduPilot gibi sürüm istenince tanıtım metinlerini de gönderir
+    statustext('ArduCopter V4.5.7 (sim)', 6);
+    statustext('Frame: QUAD/X', 6);
     send('AUTOPILOT_VERSION', { capabilities: 0xf1ef, flight_sw_version: (4 << 24) | (5 << 16) | (7 << 8) | 255, middleware_sw_version: 0, os_sw_version: 0, board_version: 0, flight_custom_version: Buffer.from('a1b2c3d4'), vendor_id: 0x1209, product_id: 0x5741, uid: 0 });
   }
 
@@ -393,8 +396,6 @@ function createSim(opts = {}) {
     every(sendHeartbeat, hbMs);
     for (const name of Object.keys(TELEMETRY)) every(TELEMETRY[name], Math.max(10, Math.round(1000 / (RATES[name] * scale))));
     sendHeartbeat();
-    later(() => statustext('ArduCopter V4.5.7 (sim)', 6), 50);
-    later(() => statustext('Frame: QUAD/X', 6), 60);
     return sim;
   };
 
