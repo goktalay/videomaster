@@ -14,8 +14,8 @@ Bağlantı Mission Planner'daki gibi tanımlanır:
 | UDP | Dronun adresine gönderir | Dron belirli bir portta dinliyorsa |
 | UDPIN | Portu dinler (varsayılan 14550) | Dron ya da SITL bu bilgisayara gönderiyorsa |
 
-Yazılım türleri: **ArduPilot**, **PX4**, **SITL** (benzetim; MAVLink) ve **Betaflight**. Betaflight farklı bir protokol
-(MSP) kullandığı için bu sürümde yalnızca kaydedilebilir; bağlantısı sonraki sürümde.
+Yazılım türleri: **ArduPilot**, **PX4**, **SITL** (benzetim; MAVLink) ve **Betaflight** (MSP + komut satırı; seri port ya da
+Betaflight SITL için TCP 127.0.0.1:5761).
 
 ## Dron penceresi
 
@@ -36,6 +36,24 @@ Yazılım türleri: **ArduPilot**, **PX4**, **SITL** (benzetim; MAVLink) ve **Be
 Parametre açıklamaları ArduPilot'un kendi kaynak kodundan ve PX4'ün yayımladığı parametre listesinden üretilir
 (Copter, Plane, Rover, Sub, PX4). Türkçe çeviri Copter, Rover ve Sub için tamdır, Plane için yaklaşık %85'tir; PX4 açıklamaları
 ve çevirisi olmayan metinler özgün haliyle (İngilizce) gösterilir.
+
+## Betaflight
+
+Betaflight kartları MSP protokolüyle bağlanır; aynı dron penceresi kullanılır, şu farklarla:
+
+- **Genel bakış**: kart, sürüm, gövde yapısı, algılayıcılar ve **motorların etkinleşmesini engelleyen** durumlar (RXLOSS, ARMSWITCH…).
+  Motorlar ve uçuş kipi kumandadan yönetilir; pencerede düğmeleri yoktur.
+- **Parametreler**: kartın bütün ayarları komut satırından (`get`) okunur: aralık, seçenekler ve varsayılan değerle birlikte.
+  Betaflight ayarlarının resmî açıklama metni olmadığı için açıklama gösterilmez. Yazılan değerler **Kaydet ve yeniden başlat** ile
+  kalıcı olur. Liste `set ad = değer` satırlarıyla dosyaya kaydedilir ve yüklenir.
+- **Motor testi**: Betaflight motor numaraları ve dönüş yönleriyle (yaw_motors_reversed dahil). Kartın kendi zaman aşımı yoktur:
+  uygulama ya da bağlantı test sırasında kesilirse motor dönmeye devam eder; pervaneleri mutlaka sökün.
+- **Kalibrasyonlar**: ivmeölçer ve pusula.
+- **Komut satırı (CLI)**: kartın her komutuna doğrudan erişen konsol (`status`, `diff all`, `dump`, `resource`, `set …`, `save`…).
+
+CLI kipindeyken (parametre okuma/yazma ve konsol) telemetri durur. Betaflight 4.5 ve sonrası CLI'dan yeniden başlatmadan
+çıkabilir; daha eski sürümlerde çıkış kartı yeniden başlatır. Her sürümde, CLI'ya bir kez girildikten sonra kart yeniden
+başlatılana kadar motorların etkinleşmesine izin vermez.
 
 ## Uçuşlar
 
@@ -68,6 +86,8 @@ Varsayılan olarak 127.0.0.1:14550'ye UDP gönderir (uygulamada **UDPIN 14550**)
 
 ## Sınırlar
 
-- Betaflight bağlantısı, görev planlama, coğrafi çit, uçuş günlüğü indirme ve yazılım yükleme bu sürümde yoktur.
+- Görev planlama, coğrafi çit, uçuş günlüğü indirme ve yazılım yükleme bu sürümde yoktur.
+- Betaflight sürücüsü sahte bir kartla sınandı; gerçek kartla ve gerçek Betaflight SITL ile denenmedi. Seri portta yeniden başlatma
+  sonrası kendiliğinden yeniden bağlanma denenmedi.
 - Haberleşme çekirdeği benzetimle ve bağımsız bir MAVLink kitaplığıyla (pymavlink) sınandı; gerçek ArduPilot/PX4 donanımıyla denenmedi.
 - PX4 kalibrasyon akışı ve motor düzeni okuması yalnızca kaynak kodundan çıkarıldı.

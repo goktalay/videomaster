@@ -87,7 +87,7 @@ function paintTop() {
   b.classList.toggle('hidden', isBf());
   $('#mode').classList.toggle('hidden', isBf());
   b.disabled = !st.linked;
-  b.className = `btn ${st.armed ? 'danger' : ''}`;
+  b.className = `btn ${st.armed ? 'danger' : ''} ${isBf() ? 'hidden' : ''}`;
   b.innerHTML = `${icon(st.armed ? 'lock' : 'bolt')}${esc(st.armed ? t('dr.disarm') : t('dr.arm'))}`;
   const sel = $('#mode');
   const modes = st.modes || [];
@@ -409,7 +409,7 @@ modules.motors = {
     host.appendChild(h(`<div class="dr-motors">
       <div class="dr-frame" data-frame></div>
       <div class="dr-motor-side">
-        <div class="dr-warn">${icon('info')}<div><b>${esc(t('dr.mt.warnTitle'))}</b><p>${esc(t('dr.mt.warn'))}</p></div></div>
+        <div class="dr-warn">${icon('info')}<div><b>${esc(t('dr.mt.warnTitle'))}</b><p>${esc(tOpt(`dr.mt.warn.${drone.firmware}`, t('dr.mt.warn')))}</p></div></div>
         <label class="check"><input type="checkbox" data-safe ${M.safe ? 'checked' : ''}><span><span class="lbl">${esc(t('dr.mt.safe'))}</span></span></label>
         <label class="cam-in"><span>${esc(t('dr.mt.throttle'))}</span><span class="unit-wrap"><input class="input" type="number" data-thr min="1" max="100" value="${M.throttle}"><span>%</span></span></label>
         <label class="cam-in"><span>${esc(t('dr.mt.seconds'))}</span><span class="unit-wrap"><input class="input" type="number" data-sec min="1" max="30" value="${M.seconds}"><span>s</span></span></label>
