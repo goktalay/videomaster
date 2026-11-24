@@ -14,7 +14,9 @@ const statusTexts = [];
 let charts = null;
 let log = null;
 
-const MODULES = [['overview', 'gauge'], ['params', 'rows'], ['motors', 'bolt'], ['calib', 'crosshair']];
+const BASE_MODULES = [['overview', 'gauge'], ['params', 'rows'], ['motors', 'bolt'], ['calib', 'crosshair']];
+let MODULES = BASE_MODULES;
+const isBf = () => !!drone && drone.firmware === 'betaflight'; // Betaflight: MSP + komut satırı (CLI)
 const call = (method, ...args) => window.api.droneCall(ID, method, ...args);
 const tm = () => st.telemetry || {};
 const sevClass = (s) => (s <= 3 ? 'err' : s === 4 ? 'warn' : '');
@@ -81,6 +83,9 @@ function paintTop() {
   $('#btnConnect').innerHTML = `${icon(st.connected ? 'x' : 'link')}${esc(st.connected ? t('cam.disconnect') : t('cam.connect'))}`;
   $('#btnConnect').classList.toggle('primary', !st.connected);
   const b = $('#btnArm');
+  // Betaflight kumandadan kurulur (arm); uçuş kipi de kumanda anahtarlarıyla seçilir
+  b.classList.toggle('hidden', isBf());
+  $('#mode').classList.toggle('hidden', isBf());
   b.disabled = !st.linked;
   b.className = `btn ${st.armed ? 'danger' : ''}`;
   b.innerHTML = `${icon(st.armed ? 'lock' : 'bolt')}${esc(st.armed ? t('dr.disarm') : t('dr.arm'))}`;
@@ -93,6 +98,8 @@ function paintTop() {
   const x = tm();
   $('#chips').innerHTML = st.linked ? [
     st.armed ? `<span class="tag err">${esc(t('dr.armed'))}</span>` : `<span class="tag">${esc(t('dr.disarmed'))}</span>`,
+    isBf() && st.mode ? `<span class="tag">${esc(st.mode)}</span>` : '',
+    st.cliMode ? `<span class="tag warn">${esc(t('dr.cliMode'))}</span>` : '',
     x.gpsFixName ? `<span class="tag ${x.gpsFix >= 3 ? 'ok' : 'warn'}">GPS ${esc(x.gpsFixName)}${x.sats !== null && x.sats !== undefined ? ` · ${x.sats}` : ''}</span>` : '',
     x.voltage ? `<span class="tag">${fmtNum(x.voltage, 2)} V${x.batteryPct !== null && x.batteryPct !== undefined && x.batteryPct >= 0 ? ` · ${x.batteryPct}%` : ''}</span>` : '',
   ].join('') : '';
@@ -109,7 +116,6 @@ function showModule() {
   const host = $('#module');
   host.innerHTML = '';
   host.className = `dr-module m-${moduleId}`;
-  if (drone.firmware === 'betaflight') { host.appendChild(h(`<div class="dr-note">${icon('info')}<div><b>Betaflight</b><p>${esc(t('dr.note.betaflight'))}</p></div></div>`)); return; }
   modules[moduleId].mount(host);
 }
 const needLink = () => (st.linked ? true : (toast(t('dr.needLink'), { type: 'err' }), false));
@@ -120,7 +126,7 @@ modules.overview = {
     host.appendChild(h(`<div class="dr-over">
       <div class="dr-cards" data-cards></div>
       <div class="dr-two">
-        <div class="dr-box"><h3>${icon('check')}${esc(t('dr.sensors'))}</h3><div class="dr-sensors" data-sensors></div></div>
+        <div class="dr-box"><h3>${icon('check')}${esc(t('dr.sensors'))}</h3><div class="dr-sensors" data-sensors></div><div class="dr-armflags" data-armflags></div></div>
         <div class="dr-box"><h3>${icon('text')}${esc(t('dr.messages'))}</h3><div class="dr-msgs" data-msgs></div></div>
       </div>
       <div class="cam-btns dr-actions"><button class="btn sm" data-a="reboot">${icon('refresh')}<span>${esc(t('dr.reboot'))}</span></button></div>
@@ -148,7 +154,14 @@ modules.overview = {
       card(t('dr.c.link'), esc(st.stats ? `${st.stats.msgRate || 0} ${t('dr.c.msgRate')}` : '—'), st.stats ? `${esc(t('dr.c.lost'))} ${st.stats.lost || 0}${x.rssi ? ` · RSSI ${x.rssi}` : ''}` : ''),
     ].join('');
     const list = (st.sensors && st.sensors.list) || [];
+    this.flags();
     host.querySelector('[data-sensors]').innerHTML = list.filter((s) => s.present).map((s) => `<span class="cam-test ${!s.enabled ? '' : s.healthy ? 'ok' : 'bad'}">${icon(!s.enabled ? 'pause' : s.healthy ? 'check' : 'x')}${esc(String(s.name).replace(/^SENSOR_/, '').replace(/_/g, ' '))}</span>`).join('') || `<div class="empty-note">${esc(t('dr.noData'))}</div>`;
+  },
+  flags() {
+    const box = this.host && this.host.isConnected && this.host.querySelector('[data-armflags]');
+    if (!box) return;
+    const list = st.armingDisabled || [];
+    box.innerHTML = list.length ? `<small>${esc(t('dr.armBlocked'))}</small><div class="dr-sensors">${list.map((f) => `<span class="cam-test bad">${icon('x')}${esc(String(f).replace(/_/g, ' '))}</span>`).join('')}</div>` : '';
   },
   messages() {
     const box = this.host && this.host.isConnected && this.host.querySelector('[data-msgs]');
@@ -169,10 +182,13 @@ modules.params = {
         <button class="btn sm primary" data-a="write" disabled></button>
         <button class="btn sm" data-a="save">${icon('download')}${esc(t('dr.p.save'))}</button>
         <button class="btn sm" data-a="load">${icon('open')}${esc(t('dr.p.load'))}</button>
+        <button class="btn sm ${isBf() ? '' : 'hidden'}" data-a="commit">${icon('check')}${esc(t('dr.p.commit'))}</button>
+        <button class="btn sm ${isBf() ? '' : 'hidden'}" data-a="exitcli">${icon('x')}${esc(t('dr.p.exitCli'))}</button>
         <label class="check sm"><input type="checkbox" data-changed><span>${esc(t('dr.p.onlyChanged'))}</span></label>
         <span style="flex:1"></span><span class="dr-p-info" data-info></span>
       </div>
       <div class="vis-bar hidden" data-bar><i></i></div>
+      ${isBf() ? `<div class="dr-note slim">${icon('info')}<div><p>${esc(t('dr.p.bfNote'))}</p></div></div>` : ''}
       <div class="dr-tree" data-tree></div>
     </div>`));
     this.host = host;
@@ -185,6 +201,12 @@ modules.params = {
     host.querySelector('[data-a="write"]').onclick = () => this.writeAll();
     host.querySelector('[data-a="save"]').onclick = () => this.exportFile();
     host.querySelector('[data-a="load"]').onclick = () => this.importFile();
+    host.querySelector('[data-a="commit"]').onclick = async () => {
+      if (!needLink() || !(await confirmBox(t('dr.p.commit'), esc(t('dr.p.commitConfirm')), { okText: t('dr.p.commit'), danger: false }))) return;
+      if (P.edits.size) await this.writeAll(true);
+      report(await call('saveParams'), t('dr.p.commit'));
+    };
+    host.querySelector('[data-a="exitcli"]').onclick = async () => { if (needLink() && await confirmBox(t('dr.p.exitCli'), esc(t('dr.p.exitConfirm')), { okText: t('dr.p.exitCli'), danger: false })) report(await call('exitCli'), t('dr.p.exitCli')); };
     const tree = host.querySelector('[data-tree]');
     tree.addEventListener('toggle', (e) => {
       const d = e.target.closest('details[data-g]');
@@ -262,23 +284,26 @@ modules.params = {
     const m = p.meta || {};
     const edited = P.edits.has(p.name);
     const value = edited ? P.edits.get(p.name) : p.value;
-    const shownVal = Number.isInteger(value) ? String(value) : String(Number(Number(value).toFixed(6)));
+    const shownVal = p.text ? String(value) : Number.isInteger(value) ? String(value) : String(Number(Number(value).toFixed(6)));
+    const same = (a, b) => (p.text ? String(a) === String(b) : Number(a) === Number(b));
     let editor;
     if (m.values && m.values.length) {
-      const has = m.values.some((v) => Number(v.value) === Number(value));
-      editor = `<select class="input" data-p="${esc(p.name)}">${has ? '' : `<option value="${esc(shownVal)}" selected>${esc(shownVal)}</option>`}${m.values.map((v) => `<option value="${esc(v.value)}" ${Number(v.value) === Number(value) ? 'selected' : ''}>${esc(v.value)} — ${esc(v.label)}</option>`).join('')}</select>`;
+      const has = m.values.some((v) => same(v.value, value));
+      editor = `<select class="input" data-p="${esc(p.name)}">${has ? '' : `<option value="${esc(shownVal)}" selected>${esc(shownVal)}</option>`}${m.values.map((v) => `<option value="${esc(v.value)}" ${same(v.value, value) ? 'selected' : ''}>${esc(String(v.value) === String(v.label) ? v.label : `${v.value} — ${v.label}`)}</option>`).join('')}</select>`;
+    } else if (p.text) {
+      editor = `<input class="input mono" data-p="${esc(p.name)}" value="${esc(shownVal)}" spellcheck="false">`;
     } else {
       const ranged = m.range && Number.isFinite(m.range[0]) && Number.isFinite(m.range[1]) && m.range[1] > m.range[0] && Number(value) >= m.range[0] && Number(value) <= m.range[1];
       const input = `<input class="input mono" type="number" data-p="${esc(p.name)}" value="${esc(shownVal)}" step="${m.increment || 'any'}" ${ranged ? `min="${m.range[0]}" max="${m.range[1]}"` : ''}>`;
       editor = m.units ? `<span class="unit-wrap">${input}<span>${esc(m.units)}</span></span>` : input;
       if (m.bits && m.bits.length) editor += `<button class="btn sm" type="button" data-bits="${esc(p.name)}">${icon('checkSquare')}${esc(t('dr.p.bits'))}</button>`;
     }
-    const facts = [m.range ? `${t('dr.p.range')}: ${m.range[0]} … ${m.range[1]}` : '', m.rebootRequired ? t('dr.p.reboot') : '', m.readOnly ? t('dr.p.readOnly') : ''].filter(Boolean).join(' · ');
+    const facts = [m.range ? `${t('dr.p.range')}: ${m.range[0]} … ${m.range[1]}` : '', m.def ? `${t('dr.p.default')}: ${m.def}` : '', m.rebootRequired ? t('dr.p.reboot') : '', m.readOnly ? t('dr.p.readOnly') : ''].filter(Boolean).join(' · ');
     const bits = m.bits && m.bits.length ? m.bits.filter((b) => (Number(value) >>> 0) & (1 << b.bit)).map((b) => b.label).join(', ') : '';
     return `<div class="dr-param ${edited ? 'edited' : ''}" data-row="${esc(p.name)}">
       <div class="dr-p-name"><b class="mono">${esc(p.name)}</b>${m.displayName ? `<span>${esc(m.displayName)}</span>` : ''}</div>
       <div class="dr-p-edit">${editor}${edited ? `<button class="icon-btn" data-undo="${esc(p.name)}" title="${esc(t('dr.p.undo'))}">${icon('history')}</button><button class="btn sm primary" data-write="${esc(p.name)}">${esc(t('dr.p.writeOne'))}</button>` : ''}</div>
-      <div class="dr-p-desc">${m.description ? esc(m.description) : `<i>${esc(t('dr.p.noDesc'))}</i>`}${bits ? `<small>${esc(bits)}</small>` : ''}${facts ? `<small>${esc(facts)}</small>` : ''}${p.original ? `<details class="dr-orig"><summary>${esc(t('dr.p.original'))}</summary>${esc(p.original)}</details>` : ''}</div>
+      <div class="dr-p-desc">${m.description ? esc(m.description) : p.text !== undefined ? '' : `<i>${esc(t('dr.p.noDesc'))}</i>`}${bits ? `<small>${esc(bits)}</small>` : ''}${facts ? `<small>${esc(facts)}</small>` : ''}${p.original ? `<details class="dr-orig"><summary>${esc(t('dr.p.original'))}</summary>${esc(p.original)}</details>` : ''}</div>
     </div>`;
   },
 
@@ -294,9 +319,10 @@ modules.params = {
     const name = e.target.dataset && e.target.dataset.p;
     if (!name) return;
     const p = P.byName.get(name);
-    const v = Number(e.target.value);
-    if (!p || !Number.isFinite(v)) return;
-    if (v === p.value) P.edits.delete(name); else P.edits.set(name, v);
+    if (!p) return;
+    const v = p.text ? e.target.value.trim() : Number(e.target.value);
+    if (!p.text && !Number.isFinite(v)) return;
+    if (String(v) === String(p.value)) P.edits.delete(name); else P.edits.set(name, v);
     this.refreshRow(name);
   },
 
@@ -319,10 +345,10 @@ modules.params = {
     return !!(r && r.ok);
   },
 
-  async writeAll() {
+  async writeAll(silent) {
     const names = [...P.edits.keys()];
     if (!names.length || !needLink()) return;
-    if (!(await confirmBox(t('dr.p.write', { n: names.length }), `<div class="dr-confirm">${names.slice(0, 40).map((n) => `<div><b class="mono">${esc(n)}</b> ${esc(String(P.byName.get(n) ? P.byName.get(n).value : ''))} → <b>${esc(String(P.edits.get(n)))}</b></div>`).join('')}${names.length > 40 ? '<div>…</div>' : ''}</div>`, { okText: t('dr.p.writeOne'), danger: false }))) return;
+    if (!silent && !(await confirmBox(t('dr.p.write', { n: names.length }), `<div class="dr-confirm">${names.slice(0, 40).map((n) => `<div><b class="mono">${esc(n)}</b> ${esc(String(P.byName.get(n) ? P.byName.get(n).value : ''))} → <b>${esc(String(P.edits.get(n)))}</b></div>`).join('')}${names.length > 40 ? '<div>…</div>' : ''}</div>`, { okText: t('dr.p.writeOne'), danger: false }))) return;
     let ok = 0;
     for (const n of names) if (await this.writeOne(n, false)) ok++;
     toast(ok === names.length ? t('dr.p.written') : t('dr.p.writeFailed'), { type: ok === names.length ? 'ok' : 'err', sub: `${ok} / ${names.length}` });
@@ -348,7 +374,8 @@ modules.params = {
 
   async exportFile() {
     if (!P.list.length) return toast(t('dr.p.empty'), { type: 'err' });
-    const f = await window.api.droneParamsExport(ID, P.list.map((p) => `${p.name},${Number.isInteger(p.value) ? p.value : Number(Number(p.value).toFixed(6))}`).join('\n') + '\n');
+    const line = (p) => (isBf() ? `set ${p.name} = ${p.value}` : `${p.name},${Number.isInteger(p.value) ? p.value : Number(Number(p.value).toFixed(6))}`);
+    const f = await window.api.droneParamsExport(ID, P.list.map(line).join('\n') + '\n');
     if (f) toast(t('dr.p.saved'), { type: 'ok', sub: f, timeout: 5000 });
   },
 
@@ -359,11 +386,13 @@ modules.params = {
     if (!r) return;
     let n = 0; let unknown = 0;
     for (const line of r.text.split(/\r?\n/)) {
-      const m = /^\s*([A-Za-z0-9_]+)\s*[,\s=]\s*(-?[0-9.eE+-]+)/.exec(line);
+      // Mission Planner biçimi (AD,DEĞER) ya da Betaflight CLI biçimi (set ad = değer)
+      const m = isBf() ? /^\s*set\s+([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/i.exec(line) : /^\s*([A-Za-z0-9_]+)\s*[,\s=]\s*(-?[0-9.eE+-]+)/.exec(line);
       if (!m || line.trim().startsWith('#')) continue;
-      const p = P.byName.get(m[1].toUpperCase()) || P.byName.get(m[1]);
-      const v = Number(m[2]);
+      const p = P.byName.get(m[1].toUpperCase()) || P.byName.get(m[1]) || P.byName.get(m[1].toLowerCase());
       if (!p) { unknown++; continue; }
+      if (p.text) { if (String(m[2]) !== String(p.value)) { P.edits.set(p.name, m[2]); n++; } continue; }
+      const v = Number(m[2]);
       if (Number.isFinite(v) && Math.abs(v - p.value) > 1e-6 * Math.max(1, Math.abs(p.value))) { P.edits.set(p.name, v); n++; }
     }
     P.onlyChanged = n > 0;
@@ -398,7 +427,7 @@ modules.motors = {
     host.querySelector('[data-a="all"]').onclick = () => this.sequence();
     host.querySelector('[data-frame]').addEventListener('click', (e) => { const b = e.target.closest('[data-motor]'); if (b) this.test(Number(b.dataset.motor)); });
     this.paint();
-    if (st.linked && !st.frame && st.params && !st.params.received && !st.params.loading) call('fetchParams'); // çerçeve yapısı parametrelerden okunur
+    if (!isBf() && st.linked && !st.frame && st.params && !st.params.received && !st.params.loading) call('fetchParams'); // çerçeve yapısı parametrelerden okunur
   },
 
   motors() {
@@ -435,6 +464,9 @@ modules.motors = {
     </svg><div class="dr-legend"><span><i class="cw"></i>${esc(t('dr.mt.cw'))}</span><span><i class="ccw"></i>${esc(t('dr.mt.ccw'))}</span><span>${esc(t('dr.mt.legend'))}</span></div>`;
   },
 
+  // ArduPilot test sırasıyla, Betaflight motor numarasıyla çağrılır
+  motorArg(order) { if (!isBf()) return order; const m = this.motors().list.find((x) => x.testOrder === order); return m ? m.n : order; },
+
   ready() {
     if (!needLink()) return false;
     if (!M.safe) { toast(t('dr.mt.needSafe'), { type: 'err' }); return false; }
@@ -444,7 +476,7 @@ modules.motors = {
   async test(order) {
     if (!this.ready()) return;
     M.active = order; this.paint();
-    const r = await call('motorTest', { motor: order, throttlePct: M.throttle, seconds: M.seconds });
+    const r = await call('motorTest', { motor: this.motorArg(order), throttlePct: M.throttle, seconds: M.seconds });
     if (!(r && r.ok)) report(r, t('dr.m.motors'));
     setTimeout(() => { if (M.active === order) { M.active = null; this.paint(); } }, M.seconds * 1000);
   },
@@ -454,7 +486,7 @@ modules.motors = {
     for (const m of this.motors().list.slice().sort((a, b) => a.testOrder - b.testOrder)) {
       if (moduleId !== 'motors' || !M.safe) break;
       M.active = m.testOrder; this.paint();
-      const r = await call('motorTest', { motor: m.testOrder, throttlePct: M.throttle, seconds: M.seconds });
+      const r = await call('motorTest', { motor: this.motorArg(m.testOrder), throttlePct: M.throttle, seconds: M.seconds });
       if (!(r && r.ok)) { report(r, t('dr.m.motors')); break; }
       await new Promise((res) => setTimeout(res, M.seconds * 1000 + 600));
       if (M.active !== m.testOrder) break; // durduruldu
@@ -466,10 +498,11 @@ modules.motors = {
 // --- Kalibrasyonlar ------------------------------------------------------------------------------
 const CAL = { text: {}, state: {}, accelPos: null, compass: [], rc: null };
 const ACCEL_POS = { 1: 'level', 2: 'left', 3: 'right', 4: 'nosedown', 5: 'noseup', 6: 'back' };
-const CAL_KINDS = [['accel', 'layers'], ['level', 'rows'], ['gyro', 'refresh'], ['compass', 'globe'], ['baro', 'gauge'], ['radio', 'signal'], ['esc', 'bolt']];
+const ALL_CAL_KINDS = [['accel', 'layers'], ['level', 'rows'], ['gyro', 'refresh'], ['compass', 'globe'], ['baro', 'gauge'], ['radio', 'signal'], ['esc', 'bolt']];
+let CAL_KINDS = ALL_CAL_KINDS;
 modules.calib = {
   mount(host) {
-    host.appendChild(h(`<div class="dr-calib">${CAL_KINDS.map(([k, ic]) => `<div class="dr-box dr-cal" data-cal="${k}"><h3>${icon(ic)}${esc(t(`dr.cal.${k}`))}</h3><p>${esc(t(`dr.cal.${k}.d`))}</p><div class="dr-cal-body" data-body></div><div class="dr-cal-state" data-state></div><div class="cam-btns" data-btns></div></div>`).join('')}</div>`));
+    host.appendChild(h(`<div class="dr-calib">${CAL_KINDS.map(([k, ic]) => `<div class="dr-box dr-cal" data-cal="${k}"><h3>${icon(ic)}${esc(tOpt(`dr.cal.${k}.${drone.firmware}`, t(`dr.cal.${k}`)))}</h3><p>${esc(tOpt(`dr.cal.${k}.${drone.firmware}.d`, t(`dr.cal.${k}.d`)))}</p><div class="dr-cal-body" data-body></div><div class="dr-cal-state" data-state></div><div class="cam-btns" data-btns></div></div>`).join('')}</div>`));
     this.host = host;
     host.addEventListener('click', (e) => { const b = e.target.closest('[data-do]'); if (b) this.act(b.dataset.do); });
     this.paint();
@@ -482,7 +515,7 @@ modules.calib = {
       CAL.state[kind] = 'started'; CAL.text[kind] = t('dr.cal.running'); this.paint();
       const r = await call('calibrate', kind);
       if (!r || !r.ok) { CAL.state[kind] = 'failed'; CAL.text[kind] = (r && (r.resultName || r.error)) || t('dr.failed'); }
-      else if (['gyro', 'level', 'baro'].includes(kind) && CAL.state[kind] === 'started') { CAL.state[kind] = 'done'; CAL.text[kind] = t('dr.cal.done'); }
+      else if ((['gyro', 'level', 'baro'].includes(kind) || isBf()) && CAL.state[kind] === 'started') { CAL.state[kind] = 'done'; CAL.text[kind] = t('dr.cal.done'); }
       this.paint();
     };
     if (['gyro', 'level', 'baro'].includes(what)) return start(what, t(`dr.cal.${what}`));
@@ -537,7 +570,7 @@ modules.calib = {
       } else if (k === 'compass') {
         body = CAL.compass.map((c) => `<div class="dr-compass"><span>${esc(t('dr.cal.compassN', { n: (c.id ?? 0) + 1 }))}</span><div class="vis-bar"><i style="width:${Math.max(0, Math.min(100, c.percent || 0))}%"></i></div><small>${c.fitness !== undefined && c.fitness !== null ? `${esc(t('dr.cal.fitness'))} ${fmtNum(c.fitness, 1)}` : `${Math.round(c.percent || 0)}%`}${c.ofs ? ` · ${c.ofs.map((v) => Math.round(v)).join(', ')}` : ''}</small></div>`).join('');
         if (state === 'started' || state === 'progress') btns = btn('compassCancel', t('common.cancel'));
-        else if (state === 'done' && CAL.compass.length) btns = btn('compassAccept', t('dr.cal.accept'), 'primary') + btn('compass', t('dr.cal.again'));
+        else if (state === 'done' && CAL.compass.length && !isBf()) btns = btn('compassAccept', t('dr.cal.accept'), 'primary') + btn('compass', t('dr.cal.again'));
       } else if (k === 'radio') {
         const rc = (tm().rc || []).slice(0, 16);
         const live = rc.filter((v) => v > 0).length;
@@ -557,6 +590,55 @@ modules.calib = {
   },
 };
 
+// --- Betaflight komut satırı (CLI): kartın bütün ayarlarına doğrudan erişim -------------------------
+const CLI = { text: '', history: [], at: 0 };
+modules.cli = {
+  mount(host) {
+    host.appendChild(h(`<div class="dr-cli">
+      <div class="dr-note slim">${icon('info')}<div><p>${esc(t('dr.cli.note'))}</p></div></div>
+      <pre class="dr-cli-out" data-out></pre>
+      <div class="dr-cli-in"><span class="mono">#</span><input class="input mono" data-in spellcheck="false" autocomplete="off" placeholder="${esc(t('dr.cli.ph'))}"><button class="btn sm primary" data-send>${esc(t('cam.send'))}</button></div>
+      <div class="cam-btns dr-cli-quick">${['status', 'version', 'diff all', 'dump', 'get', 'resource', 'tasks', 'help'].map((c) => `<button class="btn sm" data-cmd="${c}">${c}</button>`).join('')}
+        <button class="btn sm" data-cmd="save">${esc(t('dr.p.commit'))}</button><button class="btn sm" data-clear>${icon('broom')}${esc(t('cam.clear'))}</button></div>
+    </div>`));
+    this.host = host;
+    const input = host.querySelector('[data-in]');
+    const send = async (line) => {
+      const cmd = String(line || '').trim();
+      if (!cmd || !needLink()) return;
+      if (cmd === 'save' && !(await confirmBox(t('dr.p.commit'), esc(t('dr.p.commitConfirm')), { okText: t('dr.p.commit'), danger: false }))) return;
+      CLI.history.push(cmd); CLI.at = CLI.history.length;
+      input.value = '';
+      this.append(`# ${cmd}\n`);
+      const r = cmd === 'save' ? await call('saveParams') : await call('cli', cmd);
+      if (r && !r.ok) this.append(`! ${tOpt(`dr.err.${r.error}`, r.error || t('dr.failed'))}\n`);
+    };
+    host.querySelector('[data-send]').onclick = () => send(input.value);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); send(input.value); }
+      else if (e.key === 'ArrowUp' && CLI.at > 0) { e.preventDefault(); input.value = CLI.history[--CLI.at]; }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); CLI.at = Math.min(CLI.history.length, CLI.at + 1); input.value = CLI.history[CLI.at] || ''; }
+    });
+    host.querySelector('.dr-cli-quick').addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.clear !== undefined) { CLI.text = ''; this.paint(); } else send(b.dataset.cmd);
+    });
+    this.paint();
+    input.focus();
+  },
+  append(text) {
+    CLI.text = (CLI.text + String(text).replace(/\r/g, '')).slice(-200000);
+    this.paint();
+  },
+  paint() {
+    const out = this.host && this.host.isConnected && moduleId === 'cli' && this.host.querySelector('[data-out]');
+    if (!out) return;
+    out.textContent = CLI.text;
+    out.scrollTop = out.scrollHeight;
+  },
+};
+
 // --- Durum ve olaylar ----------------------------------------------------------------------------
 function applyState(next) {
   if (!next) return;
@@ -568,7 +650,7 @@ function applyState(next) {
   else if (moduleId === 'motors') modules.motors.paint();
   else if (moduleId === 'calib' && (CAL.rc || true)) modules.calib.paint();
   // Bağlanınca parametreler bir kez okunur (gövde yapısı ve motor düzeni de bunlardan çıkar)
-  if (st.linked && !wasLinked && st.params && !st.params.received && !st.params.loading && !P.loading) {
+  if (!isBf() && st.linked && !wasLinked && st.params && !st.params.received && !st.params.loading && !P.loading) {
     P.loading = true; P.progress = { received: 0, total: 0 };
     call('fetchParams').then(() => { P.loading = false; P.progress = null; modules.params.reload(false); });
   }
@@ -595,6 +677,7 @@ window.api.onDroneParam((m) => {
   if (p && p.value !== m.value) { p.value = m.value; if (!P.edits.has(m.name) && moduleId === 'params') modules.params.refreshRow(m.name); }
 });
 window.api.onDroneCalibration((m) => { if (m.id === ID) modules.calib.event(m); });
+window.api.onDroneCli((m) => { if (m.id === ID) modules.cli.append(m.text || ''); });
 window.api.onDroneChanged((d) => { if (d.id === ID) { drone = d; paintTop(); } });
 window.api.onStoreChanged((d) => { const keep = {}; for (const k of ['droneLogOpen', 'droneSideOpen', 'droneLogHeight', 'droneSideWidth', 'droneModule']) keep[k] = settings[k]; settings = { ...d.settings, ...keep }; paintThemeBtn(); });
 
@@ -604,6 +687,7 @@ window.api.onStoreChanged((d) => { const keep = {}; for (const k of ['droneLogOp
   if (!d) return window.close();
   settings = store.settings;
   drone = d;
+  if (isBf()) { MODULES = [...BASE_MODULES, ['cli', 'terminal']]; CAL_KINDS = ALL_CAL_KINDS.filter(([k]) => k === 'accel' || k === 'compass'); }
   if (MODULES.some(([m]) => m === settings.droneModule)) moduleId = settings.droneModule;
   charts = buildTelemetryCharts($('#charts'));
   log = buildCommLog({ rows: $('#logRows'), search: $('#logSearch'), dir: $('#logDir'), pause: $('#logPause'), clear: $('#logClear'), count: $('#logCount') });
@@ -615,5 +699,5 @@ window.api.onStoreChanged((d) => { const keep = {}; for (const k of ['droneLogOp
   log.add(await window.api.droneRecent(ID));
   const cur = await window.api.droneState(ID);
   if (cur && cur.connected) applyState(cur);
-  else if (drone.autoConnect && drone.firmware !== 'betaflight') applyState(await window.api.droneConnect(ID));
+  else if (drone.autoConnect) applyState(await window.api.droneConnect(ID));
 })();

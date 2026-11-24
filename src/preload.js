@@ -102,6 +102,7 @@ contextBridge.exposeInMainWorld('api', {
   onDroneParams: on('drone:params'),
   onDroneParam: on('drone:param'),
   onDroneCalibration: on('drone:calibration'),
+  onDroneCli: on('drone:cli'),
   onDroneChanged: on('drone:changed'),
   onDroneBrief: on('drone:brief'),
   saveFlight: (form) => ipcRenderer.invoke('flight:save', form),

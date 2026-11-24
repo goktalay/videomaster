@@ -225,7 +225,6 @@
     'dr.o.linkType.udp': 'UDP（发送到无人机）',
     'dr.o.linkType.udpin': 'UDPIN（监听无人机）',
     'dr.note.sitl': 'ArduPilot SITL 默认：TCP 127.0.0.1:5760。PX4 SITL 请选择 UDPIN 14550。',
-    'dr.note.betaflight': 'Betaflight 使用不同的协议（MSP）；此版本只能保存记录。连接和模块将在后续版本中提供。',
     'dr.st.off': '未连接',
     'dr.st.waiting': '正在等待无人机',
     'dr.st.linked': '已连接',

@@ -225,7 +225,6 @@
     'dr.o.linkType.udp': 'UDP (an die Drohne senden)',
     'dr.o.linkType.udpin': 'UDPIN (auf die Drohne warten)',
     'dr.note.sitl': 'Standard für ArduPilot SITL: TCP 127.0.0.1:5760. Für PX4 SITL UDPIN 14550 wählen.',
-    'dr.note.betaflight': 'Betaflight verwendet ein anderes Protokoll (MSP); in dieser Version kann nur der Eintrag gespeichert werden. Verbindung und Module folgen in einer späteren Version.',
     'dr.st.off': 'Nicht verbunden',
     'dr.st.waiting': 'Warten auf die Drohne',
     'dr.st.linked': 'Verbunden',

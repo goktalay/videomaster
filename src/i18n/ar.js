@@ -225,7 +225,6 @@
     'dr.o.linkType.udp': 'UDP (إرسال إلى الطائرة)',
     'dr.o.linkType.udpin': 'UDPIN (الاستماع للطائرة)',
     'dr.note.sitl': 'الإعداد الافتراضي لـ ArduPilot SITL: ‏TCP 127.0.0.1:5760. لـ PX4 SITL اختر UDPIN 14550.',
-    'dr.note.betaflight': 'يستخدم Betaflight بروتوكولًا مختلفًا (MSP)؛ هذا الإصدار يتيح حفظ السجل فقط. سيتوفر الاتصال والوحدات في إصدار لاحق.',
     'dr.st.off': 'غير متصل',
     'dr.st.waiting': 'في انتظار الطائرة',
     'dr.st.linked': 'متصل',

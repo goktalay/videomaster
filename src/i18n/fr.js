@@ -225,7 +225,6 @@
     'dr.o.linkType.udp': 'UDP (envoi vers le drone)',
     'dr.o.linkType.udpin': 'UDPIN (écoute du drone)',
     'dr.note.sitl': "Valeur par défaut d'ArduPilot SITL : TCP 127.0.0.1:5760. Pour PX4 SITL, choisissez UDPIN 14550.",
-    'dr.note.betaflight': "Betaflight utilise un protocole différent (MSP) ; cette version permet uniquement d'enregistrer la fiche. La connexion et les modules arriveront dans une version ultérieure.",
     'dr.st.off': 'Non connecté',
     'dr.st.waiting': 'En attente du drone',
     'dr.st.linked': 'Connecté',

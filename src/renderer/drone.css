@@ -127,3 +127,16 @@
 .rc-bar { position: relative; height: 8px; border-radius: 4px; background: var(--surface-3); }
 .rc-bar i { position: absolute; top: -3px; width: 4px; height: 14px; margin-inline-start: -2px; border-radius: 2px; background: var(--accent); }
 .rc-bar em { position: absolute; top: 0; height: 100%; border-radius: 4px; background: color-mix(in srgb, var(--ok) 45%, transparent); }
+
+/* Betaflight: kurmayı engelleyenler, CLI konsolu */
+.dr-armflags { margin-top: 10px; display: grid; gap: 6px; }
+.dr-armflags small { color: var(--warn); font-size: 11.5px; }
+.dr-note.slim { padding: 8px 12px; margin: 10px 14px 0; font-size: 12px; }
+.dr-note.slim p { margin: 0; }
+.dr-module.m-cli { display: flex; padding: 0; overflow: hidden; }
+.dr-cli { flex: 1; display: flex; flex-direction: column; min-width: 0; gap: 8px; padding-bottom: 12px; }
+.dr-cli-out { flex: 1; min-height: 80px; margin: 0 14px; padding: 10px 12px; overflow: auto; border-radius: 9px; background: var(--bg); border: 1px solid var(--border); font-family: var(--mono); font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; user-select: text; direction: ltr; }
+.dr-cli-in { display: flex; align-items: center; gap: 8px; margin: 0 14px; }
+.dr-cli-in .input { flex: 1; }
+.dr-cli-in > span { color: var(--accent); font-weight: 700; }
+.dr-cli-quick { margin: 0 14px; display: flex; flex-wrap: wrap; }

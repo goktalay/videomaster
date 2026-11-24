@@ -6,7 +6,7 @@
 const DRONE = require('./schema');
 
 // Pencerelerin çağırabildiği araç işlevleri
-const METHODS = new Set(['arm', 'setMode', 'motorTest', 'motorStop', 'calibrate', 'reboot', 'saveRcLimits', 'fetchParams', 'setParam', 'command']);
+const METHODS = new Set(['arm', 'setMode', 'motorTest', 'motorStop', 'calibrate', 'reboot', 'saveRcLimits', 'fetchParams', 'setParam', 'command', 'saveParams', 'exitCli', 'cli']);
 
 // deps: { getDrone(id), emit(channel, payload), createVehicle(drone) → araç | null, paramDefs(firmware, vehicle) → sözlük | null }
 function createDroneSessions(deps) {
@@ -35,6 +35,7 @@ function createDroneSessions(deps) {
     vehicle.on('params', safe((p) => deps.emit('drone:params', { id, ...p })));
     vehicle.on('param', safe((p) => deps.emit('drone:param', { id, ...p })));
     vehicle.on('calibration', safe((c) => deps.emit('drone:calibration', { id, ...c })));
+    vehicle.on('cli', safe((c) => deps.emit('drone:cli', { id, ...c })));
     vehicle.on('error', () => {});
     return s;
   }
@@ -75,6 +76,12 @@ function createDroneSessions(deps) {
     const st = s.vehicle.snapshot();
     const defs = deps.paramDefs(st.firmware, st.vehicle);
     return s.vehicle.getParams().map((p) => {
+      // Betaflight: açıklama sözlüğü yok; aralık, seçenekler ve varsayılan değer karttan (CLI) gelir
+      if (p.range !== undefined || p.values !== undefined || p.def !== undefined) {
+        const values = Array.isArray(p.values) && p.values.length ? p.values.map((v) => ({ value: v, label: String(v) })) : [];
+        return { name: p.name, value: p.value, type: p.type, index: p.index, text: p.type !== 'number', group: p.name.includes('_') ? p.name.split('_')[0].toUpperCase() : '',
+          meta: { displayName: '', description: '', units: '', range: Array.isArray(p.range) ? p.range : null, increment: null, values, bits: [], readOnly: false, rebootRequired: false, def: p.def === undefined || p.def === null ? '' : String(p.def) }, original: '' };
+      }
       const meta = defs ? defs.lookup(p.name, lang) : null;
       const orig = defs && lang !== 'en' ? defs.lookup(p.name, 'en') : null;
       return { ...p, group: defs ? defs.groupOf(p.name) : (p.name.includes('_') ? p.name.split('_')[0] : ''), meta, original: orig && meta && orig.description !== meta.description ? orig.description : '' };

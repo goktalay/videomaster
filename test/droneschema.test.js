@@ -29,7 +29,7 @@ test('dron şeması: varsayılanlar, sınırlar, doğrulama, bağlantı özeti',
 test('dron ve uçuş metinleri: alanlar, seçenekler, modüller, yerleşimler Türkçe ve İngilizcede var', () => {
   const keys = ['sec.cameras', 'sec.drones', 'sec.flights', 'hud.cardinals'];
   for (const f of DRONE.FIELDS) { keys.push(`dr.f.${f.key}`); if (f.type === 'select' && !f.raw) for (const v of f.opts) keys.push(`dr.o.${f.key}.${v}`); }
-  for (const m of ['overview', 'params', 'motors', 'calib']) keys.push(`dr.m.${m}`);
+  for (const m of ['overview', 'params', 'motors', 'calib', 'cli']) keys.push(`dr.m.${m}`);
   for (const k of ['accel', 'level', 'gyro', 'compass', 'baro', 'radio', 'esc']) keys.push(`dr.cal.${k}`, `dr.cal.${k}.d`);
   for (const p of ['level', 'left', 'right', 'nosedown', 'noseup', 'back']) keys.push(`dr.pos.${p}`);
   for (const l of DRONE.LAYOUTS) keys.push(`fl.l.${l}`);

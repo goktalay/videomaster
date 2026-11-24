@@ -961,7 +961,7 @@ function drones() {
     getDrone,
     emit: droneEmit,
     createVehicle: (d) => {
-      if (d.firmware === 'betaflight') return null; // MSP sürücüsü sonraki aşamada
+      if (d.firmware === 'betaflight') { const { BfVehicle } = require('./drone/betaflight'); return new BfVehicle(DRONE.linkConfig(d), { streamRate: d.streamRate }); } // MSP + CLI
       const { MavVehicle } = require('./drone/vehicle');
       return new MavVehicle(DRONE.linkConfig(d), { gcsSysid: d.gcsSysid, streamRate: d.streamRate, firmwareHint: d.firmware === 'px4' ? 'px4' : 'ardupilot' });
     },
