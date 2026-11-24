@@ -34,7 +34,8 @@ Yazılım türleri: **ArduPilot**, **PX4**, **SITL** (benzetim; MAVLink) ve **Be
 - Üst çubuk: bağlan/kes, uçuş kipi seçimi, motorları etkinleştir/kapat.
 
 Parametre açıklamaları ArduPilot'un kendi kaynak kodundan ve PX4'ün yayımladığı parametre listesinden üretilir
-(Copter, Plane, Rover, Sub, PX4). Türkçe çeviri önce Copter için yapılmıştır; çevirisi olmayan metinler özgün haliyle gösterilir.
+(Copter, Plane, Rover, Sub, PX4). Türkçe çeviri Copter, Rover ve Sub için tamdır, Plane için yaklaşık %85'tir; PX4 açıklamaları
+ve çevirisi olmayan metinler özgün haliyle (İngilizce) gösterilir.
 
 ## Uçuşlar
 
