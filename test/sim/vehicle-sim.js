@@ -64,6 +64,8 @@ function createSim(opts = {}) {
   const calStepMs = opts.calStepMs || 300;
 
   const params = new Map(DEFAULT_PARAMS.map(([name, value, type]) => [name, { value, type }]));
+  // manyParams: gerçek araçlardaki gibi çok sayıda grup (arayüz denemeleri için): N grup × 6 parametre
+  for (let g = 0; g < (opts.manyParams || 0); g++) for (let i = 0; i < 6; i++) params.set(`G${String(g).padStart(3, '0')}_PARAM${i}`, { value: g + i / 10, type: T.REAL32 });
   const names = () => [...params.keys()];
   const drop = new Set(opts.dropParams || []);
 
