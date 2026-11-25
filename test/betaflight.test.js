@@ -345,6 +345,8 @@ test.it('betaflight: kurma engelleri → statustext; kurulu araç ve kip', async
   assert.deepStrictEqual(v.snapshot().boxes, ['ANGLE']);
   sim.setArmed(true);
   await waitFor(() => v.snapshot().armed, 3000, 'armed');
+  // Motor değerleri ayrı bir iletiyle gelir; kurulu durumundan sonra ulaşabilir
+  await waitFor(() => v.snapshot().telemetry.servo[0] === 1300 && v.snapshot().telemetry.throttle === 35, 3000, 'armed motor values');
   const s = v.snapshot();
   assert.strictEqual(s.systemStatus, 'ACTIVE');
   assert.strictEqual(s.telemetry.throttle, 35);
