@@ -67,6 +67,13 @@ başlatılana kadar motorların etkinleşmesine izin vermez.
   büyüğüyle yer değiştirir. Kamera ve harita ayrı ayrı tam ekran açılabilir (HUD ile birlikte).
 - **HUD**: yapay ufuk ve yunuslama merdiveni, yatış ölçeği, hız ve yükseklik şeritleri, tırmanma göstergesi, yön şeridi; altta uçuş
   kipi, motor durumu, batarya, GPS, kalkış noktasına uzaklık, gaz.
+- **HUD görünümleri** (üst çubuktaki gösterge düğmesi): **Transparan** (görüntünün üstüne çizilen şeritler), **Göstergeler**
+  (yüzen küçük panelde yapay ufuk küresi ve pusula; altında hız, yükseklik, tırmanma), **Küçük** (yalnız yapay ufuk) ve **Kapalı**.
+- **Telemetri çubuğunu düzenleme**: çubuktaki dişli düğmesi gösterilecek kutuları ve sıralarını seçtirir. Seçenekler: yükseklik,
+  rakım, yer hızı, hava hızı, tırmanma, yön, eve uzaklık, hedefe uzaklık, batarya, akım, GPS, HDOP, uçuş süresi, görev, gaz,
+  yatış, yunuslama, kumanda sinyali, konum.
+- **Dron ekranı** (üst çubuktaki dişli): aynı bağlantıyı ve telemetriyi kullanan dron penceresini açar; uçuş sürerken parametre,
+  ayar ve kalibrasyon ekranlarına geçilebilir. Dron penceresi kapatılınca uçuşun bağlantısı sürer.
 - **Kamera paneli** (dişli düğmesi): akış penceresindeki bütün özellikler — akış ayarları, kamera kontrol, yapay görü; ayrıca
   kayıt, anlık görüntü, ses ve akış verisi paneli.
 

@@ -140,3 +140,28 @@
 /* Yüklü görevin haritadaki noktaları */
 .fl-wp { display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 10px; background: #f5d0fe; color: #3b0764; font: 700 10.5px/1 system-ui, sans-serif; border: 1.5px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .5); }
 .fl-wp.cur { background: #d946ef; color: #fff; min-width: 26px; height: 26px; font-size: 12px; box-shadow: 0 0 0 5px rgba(217, 70, 239, .35), 0 2px 6px rgba(0, 0, 0, .5); z-index: 2; }
+
+/* Telemetri çubuğu düzenleme */
+.fl-tm .tm.wide { min-width: 170px; }
+.fl-tm .tm.wide b { font-size: 14px; }
+.fl-tm .tm-fold svg { transition: none; }
+.fl-tm .tm-chev svg { transition: transform .2s; }
+.fl-stage.ops-folded .tm-fold:not(.tm-chev) svg { transform: none; }
+.tm-edit { display: grid; gap: 2px; max-height: min(60vh, 520px); overflow: auto; }
+.tm-edit-row { display: flex; align-items: center; gap: 4px; padding: 3px 4px 3px 8px; border-radius: 8px; }
+.tm-edit-row:hover { background: var(--bg-2); }
+
+/* Gösterge paneli (yüzen yapay ufuk + pusula) */
+.fl-inst { position: absolute; z-index: 7; top: calc(var(--deck-h) + 26px); right: 14px; padding: 10px; border-radius: 18px; display: grid; gap: 8px; pointer-events: none;
+  background: linear-gradient(180deg, rgba(16, 24, 40, .78), rgba(8, 13, 24, .72)); border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 16px 40px rgba(0, 0, 0, .5); backdrop-filter: blur(14px); }
+.fl-inst .inst-dials { display: flex; gap: 10px; }
+.fl-inst canvas { width: clamp(110px, 11vw, 160px); aspect-ratio: 1; display: block; }
+.fl-inst.compact canvas[data-k="cmp"] { display: none; }
+.fl-inst.compact canvas { width: clamp(96px, 9vw, 130px); }
+.fl-inst .inst-vals { display: flex; justify-content: space-around; gap: 10px; color: #e8f0fb; }
+.fl-inst .inst-vals div { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.fl-inst .inst-vals label { font-size: 9.5px; letter-spacing: .08em; color: #8194b0; text-transform: uppercase; }
+.fl-inst .inst-vals b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.fl-inst .inst-vals small { font-size: 10px; color: #8fa3bf; }
+.fl-inst.compact .inst-vals { flex-direction: column; gap: 2px; }
+.fl-stage[data-layout="split"] .fl-inst { right: 14px; }

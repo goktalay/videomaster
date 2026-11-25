@@ -166,3 +166,120 @@ class FlightHud {
     return 2 * R * Math.asin(Math.sqrt(a));
   }
 }
+
+// Gösterge paneli (QGroundControl'deki gibi küçük, yüzen göstergeler): yapay ufuk küresi + pusula; altında hız / yükseklik.
+// compact: yalnızca yapay ufuk. Değerler kareler arasında yumuşatılır.
+class InstrumentPanel {
+  constructor(host) {
+    this.host = host;
+    this.target = null; this.state = {};
+    this.cur = { roll: 0, pitch: 0, heading: 0 };
+    this.compact = false;
+    this.visible = false;
+    host.innerHTML = '<div class="inst-dials"><canvas data-k="att"></canvas><canvas data-k="cmp"></canvas></div><div class="inst-vals"></div>';
+    this.att = host.querySelector('[data-k="att"]');
+    this.cmp = host.querySelector('[data-k="cmp"]');
+    this.vals = host.querySelector('.inst-vals');
+    this.cardinals = t('hud.cardinals').split(',');
+    this.last = performance.now();
+    const loop = (now) => { this.frame(now); this.raf = requestAnimationFrame(loop); };
+    this.raf = requestAnimationFrame(loop);
+  }
+
+  update(telemetry, state) { this.target = telemetry || null; this.state = state || {}; }
+  setMode(visible, compact) { this.visible = visible; this.compact = compact; this.host.classList.toggle('hidden', !visible); this.host.classList.toggle('compact', compact); }
+  destroy() { cancelAnimationFrame(this.raf); }
+
+  prep(c) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const s = Math.max(1, Math.round(c.clientWidth * dpr));
+    if (c.width !== s || c.height !== s) { c.width = s; c.height = s; }
+    const g = c.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, s, s);
+    return { g, s, u: s / 100 };
+  }
+
+  frame(now) {
+    const dt = Math.min(0.1, (now - this.last) / 1000);
+    this.last = now;
+    if (!this.visible) return;
+    const live = !!(this.target && this.state.linked);
+    const tg = this.target || {};
+    const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+    const k = 1 - Math.exp(-dt * 12);
+    const cur = this.cur;
+    cur.roll += (num(tg.roll) - cur.roll) * k;
+    cur.pitch += (num(tg.pitch) - cur.pitch) * k;
+    cur.heading = (cur.heading + ((((num(tg.heading) - cur.heading + 540) % 360) - 180) * k) + 360) % 360;
+    this.drawAttitude(live);
+    if (!this.compact) this.drawCompass(live, tg);
+    const f = (v, d = 1) => (live && Number.isFinite(v) ? v.toFixed(d) : '—');
+    const html = `<div><label>${esc(t('hud.speed'))}</label><b>${f(tg.groundspeed)}</b><small>m/s</small></div><div><label>${esc(t('hud.alt'))}</label><b>${f(tg.altRel)}</b><small>m</small></div><div><label>${esc(t('tm.climb'))}</label><b>${live && Number.isFinite(tg.climb) ? `${tg.climb > 0.05 ? '+' : ''}${tg.climb.toFixed(1)}` : '—'}</b><small>m/s</small></div>`;
+    if (html !== this.lastHtml) { this.lastHtml = html; this.vals.innerHTML = html; }
+  }
+
+  // Yapay ufuk: gökyüzü / yer, yunuslama çizgileri, yatış ölçeği, sabit uçak simgesi
+  drawAttitude(live) {
+    const { g, s, u } = this.prep(this.att);
+    const c = s / 2; const R = 46 * u;
+    g.save();
+    g.beginPath(); g.arc(c, c, R, 0, Math.PI * 2); g.clip();
+    g.translate(c, c); g.rotate((-this.cur.roll * Math.PI) / 180);
+    const ppd = R / 32; // derece başına piksel
+    const off = this.cur.pitch * ppd;
+    g.fillStyle = live ? '#3b8fd9' : '#475569'; g.fillRect(-2 * R, -3 * R + off, 4 * R, 3 * R);
+    g.fillStyle = live ? '#8a5a2b' : '#334155'; g.fillRect(-2 * R, off, 4 * R, 3 * R);
+    g.strokeStyle = '#fff'; g.lineWidth = 1.2 * u; g.beginPath(); g.moveTo(-2 * R, off); g.lineTo(2 * R, off); g.stroke();
+    g.fillStyle = '#fff'; g.font = `600 ${7 * u}px system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 1 * u;
+    for (let d = -60; d <= 60; d += 10) {
+      if (!d) continue;
+      const y = off - d * ppd; const w = (d % 20 ? 7 : 13) * u;
+      g.beginPath(); g.moveTo(-w, y); g.lineTo(w, y); g.stroke();
+      if (!(d % 20)) { g.fillText(String(Math.abs(d)), -w - 7 * u, y); g.fillText(String(Math.abs(d)), w + 7 * u, y); }
+    }
+    g.restore();
+    // yatış ölçeği ve göstergesi
+    g.save(); g.translate(c, c);
+    g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 1.2 * u;
+    for (const a of [-60, -45, -30, -20, -10, 0, 10, 20, 30, 45, 60]) { const r = (a - 90) * Math.PI / 180; const len = (a % 30 ? 3 : 6) * u; g.beginPath(); g.moveTo(Math.cos(r) * (R - len), Math.sin(r) * (R - len)); g.lineTo(Math.cos(r) * R, Math.sin(r) * R); g.stroke(); }
+    g.rotate((-this.cur.roll * Math.PI) / 180);
+    g.fillStyle = '#fbbf24'; g.beginPath(); g.moveTo(0, -R + 7 * u); g.lineTo(-4 * u, -R + 14 * u); g.lineTo(4 * u, -R + 14 * u); g.closePath(); g.fill();
+    g.restore();
+    // sabit uçak simgesi
+    g.strokeStyle = '#fbbf24'; g.lineWidth = 2.6 * u; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(c - 24 * u, c); g.lineTo(c - 9 * u, c); g.lineTo(c - 5 * u, c + 5 * u); g.moveTo(c + 24 * u, c); g.lineTo(c + 9 * u, c); g.lineTo(c + 5 * u, c + 5 * u); g.stroke();
+    g.fillStyle = '#fbbf24'; g.beginPath(); g.arc(c, c, 1.8 * u, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.5 * u; g.beginPath(); g.arc(c, c, R, 0, Math.PI * 2); g.stroke();
+  }
+
+  // Pusula: dönen kadran, sabit araç oku, ev yönü işareti, ortada yön değeri
+  drawCompass(live, tg) {
+    const { g, s, u } = this.prep(this.cmp);
+    const c = s / 2; const R = 46 * u;
+    g.fillStyle = 'rgba(6, 12, 22, .82)'; g.beginPath(); g.arc(c, c, R, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.5 * u; g.stroke();
+    g.save(); g.translate(c, c); g.rotate((-this.cur.heading * Math.PI) / 180);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let d = 0; d < 360; d += 15) {
+      const r = (d - 90) * Math.PI / 180; const major = d % 90 === 0; const mid = d % 45 === 0;
+      g.strokeStyle = major ? '#fff' : 'rgba(255,255,255,.6)'; g.lineWidth = (major ? 1.8 : 1) * u;
+      g.beginPath(); g.moveTo(Math.cos(r) * (R - (mid ? 7 : 4) * u), Math.sin(r) * (R - (mid ? 7 : 4) * u)); g.lineTo(Math.cos(r) * (R - 1 * u), Math.sin(r) * (R - 1 * u)); g.stroke();
+      if (major) { g.save(); g.translate(Math.cos(r) * (R - 14 * u), Math.sin(r) * (R - 14 * u)); g.rotate((this.cur.heading * Math.PI) / 180); g.fillStyle = d === 0 ? '#f87171' : '#e2e8f0'; g.font = `700 ${10 * u}px system-ui, sans-serif`; g.fillText(this.cardinals[d / 90] || '', 0, 0); g.restore(); }
+    }
+    // ev yönü
+    const home = FlightHud.distance(tg.lat, tg.lon, tg.homeLat, tg.homeLon);
+    if (live && home !== null && home > 3) {
+      const r = Math.PI / 180;
+      const y = Math.sin((tg.homeLon - tg.lon) * r) * Math.cos(tg.homeLat * r);
+      const x = Math.cos(tg.lat * r) * Math.sin(tg.homeLat * r) - Math.sin(tg.lat * r) * Math.cos(tg.homeLat * r) * Math.cos((tg.homeLon - tg.lon) * r);
+      const b = Math.atan2(y, x) - Math.PI / 2;
+      g.fillStyle = '#34d399'; g.beginPath(); g.arc(Math.cos(b) * (R - 25 * u), Math.sin(b) * (R - 25 * u), 3.4 * u, 0, Math.PI * 2); g.fill();
+    }
+    g.restore();
+    // sabit araç oku ve değer
+    g.fillStyle = live ? '#f43f5e' : '#64748b'; g.beginPath(); g.moveTo(c, c - 30 * u); g.lineTo(c - 6 * u, c - 16 * u); g.lineTo(c + 6 * u, c - 16 * u); g.closePath(); g.fill();
+    g.fillStyle = '#fff'; g.font = `700 ${15 * u}px ui-monospace, Consolas, monospace`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(live ? `${String(Math.round(this.cur.heading) % 360).padStart(3, '0')}°` : '—', c, c + 6 * u);
+  }
+}

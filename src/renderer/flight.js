@@ -17,12 +17,13 @@
   let flight = null;
   let drone = null;
   let st = { connected: false, linked: false, telemetry: {} };
-  let prefs = { layout: 'mapPip', hud: true, follow: true, style: 'sat', tilt: true, flat: false };
+  let prefs = { layout: 'mapPip', hud: 'transparent', follow: true, style: 'sat', tilt: true, flat: false };
   let flatMode = false;      // sade 2B harita kullanılıyor (seçildi ya da 3B açılamadı)
   let map = null;
   let mapReady = false;
   let marker = null;
   let hud = null;
+  let inst = null;
   const track = [];          // [lon, lat, alt]
   let shown = null;          // haritada gösterilen (yumuşatılmış) konum
   let lastTrackPaint = 0;
@@ -30,7 +31,10 @@
   // --- Üst çubuk ---
   el('#flIcon').innerHTML = icon('globe');
   el('#btnHud').innerHTML = icon('gauge');
-  el('#btnHud').title = t('fl.hud');
+  el('#btnHud').title = t('hud.style');
+  el('#btnDrone').innerHTML = icon('gear');
+  el('#btnDrone').title = t('fl.openDrone');
+  el('#btnDrone').onclick = () => { if (drone && !(flight && flight.replay)) window.api.openDrone(drone.id); };
   el('#btnSwap').innerHTML = icon('swap');
   el('#btnSwap').title = t('fl.swap');
   el('#btnPanel').innerHTML = icon('gear');
@@ -57,7 +61,12 @@
   // Küçük pencereye tıklamak büyüğüyle yer değiştirir
   el('#video').addEventListener('click', () => { if (prefs.layout === 'mapPip') setLayoutMode('videoPip'); });
   el('#mapPane').addEventListener('click', (e) => { if (prefs.layout === 'videoPip' && !e.target.closest('.fl-map-tools')) setLayoutMode('mapPip'); }, true);
-  el('#btnHud').onclick = () => { prefs.hud = !prefs.hud; window.api.setSettings({ flightHud: prefs.hud }); paintTools(); };
+  // HUD görünümleri: Transparan (görüntünün üstüne çizilen şeritler), Göstergeler (yüzen yapay ufuk + pusula), Küçük (yalnız yapay ufuk), Kapalı
+  const HUD_STYLES = ['transparent', 'instruments', 'compact', 'off'];
+  el('#btnHud').onclick = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    contextMenu(r.left, r.bottom + 6, HUD_STYLES.map((s) => ({ label: t(`hud.s.${s}`), icon: prefs.hud === s ? 'check' : s === 'off' ? 'eyeOff' : 'gauge', action: () => { prefs.hud = s; window.api.setSettings({ flightHudStyle: s }); paintTools(); } })));
+  };
 
   // Tam ekran: sahnenin tamamı (HUD ile birlikte); kamera düğmesi kamerayı, harita düğmesi haritayı öne alır
   let beforeFull = null;
@@ -75,8 +84,9 @@
 
   // --- Harita ---
   function paintTools() {
-    el('#btnHud').classList.toggle('active', prefs.hud);
-    if (hud) hud.visible = prefs.hud;
+    el('#btnHud').classList.toggle('active', prefs.hud !== 'off');
+    if (hud) hud.visible = prefs.hud === 'transparent';
+    if (inst) inst.setMode(prefs.hud === 'instruments' || prefs.hud === 'compact', prefs.hud === 'compact');
     const b = (id, ic, title, on) => `<button class="icon-btn ${on ? 'active' : ''}" data-t="${id}" title="${esc(title)}">${icon(ic)}</button>`;
     el('#mapTools').innerHTML = b('follow', 'crosshair', t('fl.follow'), prefs.follow) + b('style', 'layers', t(prefs.style === 'sat' ? 'fl.street' : 'fl.sat'), false)
       + (flatMode ? '' : b('tilt', 'chart', t('fl.tilt'), prefs.tilt)) + b('flat', 'image', t(flatMode ? 'fl.use3d' : 'fl.use2d'), flatMode) + b('home', 'home', t('fl.goHome'), false) + b('clear', 'broom', t('fl.clearTrack'), false) + b('zin', 'plus', '+', false) + b('zout', 'minus', '−', false) + b('full', 'expand', t('fl.mapFull'), false);
@@ -254,6 +264,7 @@
     st = { telemetry: {}, ...next };
     paintDrone();
     if (hud) hud.update(st.telemetry, st);
+    if (inst) inst.update(st.telemetry, st);
     paintOps();
     onTelemetry();
   }
@@ -311,55 +322,93 @@
     el('#pickHint').textContent = t('fl.op.pickHint');
   }
 
-  // Telemetri kutuları: kip + motor durumu, irtifa, hız, tırmanma, yön, eve uzaklık, batarya, GPS, uçuş süresi
+  // Telemetri çubuğu: solda kip + motor durumu, ardından kullanıcının seçtiği kutular (dişli düğmesiyle düzenlenir)
   let armedAt = 0;
   let flownMs = 0;
+  let tmFields = [];
+  const TM_DEFAULT = ['alt', 'spd', 'climb', 'hdg', 'home', 'batt', 'gps', 'time', 'wp'];
+  const dist = (d) => (Number.isFinite(d) && d !== null ? [d >= 1000 ? (d / 1000).toFixed(2) : String(Math.round(d)), d >= 1000 ? 'km' : 'm'] : ['—', 'm']);
+  // Alan → [kısa etiket, birim, değer işlevi(x, canlı mı) → değer | [değer, birim, sınıf, çubuk %]]
+  const TM = {
+    alt: [() => t('tm.altRel'), 'm', (x) => x.altRel],
+    altMsl: [() => t('s.altMsl'), 'm', (x) => x.altMsl],
+    spd: [() => t('fl.tm.speed'), 'm/s', (x) => x.groundspeed],
+    airspeed: [() => t('s.airspeed'), 'm/s', (x) => x.airspeed],
+    climb: [() => t('tm.climb'), 'm/s', (x) => (Number.isFinite(x.climb) ? [`${x.climb > 0.05 ? '+' : ''}${x.climb.toFixed(1)}`] : null)],
+    hdg: [() => t('tm.heading'), '°', (x) => (Number.isFinite(x.heading) ? [String(Math.round(x.heading)).padStart(3, '0')] : null)],
+    home: [() => t('fl.tm.home'), 'm', (x) => { const d = (x.homeLat || x.homeLon) && hasPos() ? FlightHud.distance(x.lat, x.lon, x.homeLat, x.homeLon) : null; return d === null ? null : dist(d); }],
+    target: [() => t('s.target'), 'm', (x) => (target && hasPos() ? dist(FlightHud.distance(x.lat, x.lon, target.lat, target.lon)) : null)],
+    batt: [() => t('fl.tm.batt'), 'V', (x) => { const pct = Number.isFinite(x.batteryPct) && x.batteryPct >= 0 ? x.batteryPct : NaN; return x.voltage ? [x.voltage.toFixed(1), Number.isFinite(pct) ? `V · ${Math.round(pct)}%` : 'V', pct < 20 ? 'bad' : pct < 35 ? 'warn' : '', Number.isFinite(pct) ? pct : 0] : null; }, true],
+    current: [() => t('s.current'), 'A', (x) => x.current],
+    gps: [() => 'GPS', '', (x) => { const fix = Number(x.gpsFix) || 0; return Number.isFinite(x.sats) ? [String(x.sats), fix >= 3 ? '3D' : fix === 2 ? '2D' : t('fl.tm.noFix'), fix >= 3 ? 'good' : fix >= 2 ? 'warn' : 'bad'] : null; }],
+    hdop: [() => t('s.hdop'), '', (x) => (Number.isFinite(x.hdop) ? [x.hdop.toFixed(2), '', x.hdop <= 1.5 ? 'good' : x.hdop <= 2.5 ? 'warn' : 'bad'] : null)],
+    time: [() => t('fl.tm.time'), '', () => { const sec = Math.floor((flownMs + (armedAt ? Date.now() - armedAt : 0)) / 1000); return [`${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`]; }, false, true],
+    wp: [() => t('s.wp'), '', () => { const ms = st.mission || {}; return ms.loaded ? [`${ms.current >= 0 ? ms.current + 1 : '—'}/${ms.count}`] : null; }],
+    throttle: [() => t('s.throttle'), '%', (x) => (Number.isFinite(x.throttle) ? [String(Math.round(x.throttle))] : null)],
+    roll: [() => t('s.roll'), '°', (x) => x.roll],
+    pitch: [() => t('s.pitch'), '°', (x) => x.pitch],
+    rssi: [() => t('s.rssi'), '%', (x) => (Number.isFinite(x.rssi) ? [String(Math.round(x.rssi)), '%', x.rssi < 30 ? 'bad' : x.rssi < 50 ? 'warn' : ''] : null)],
+    pos: [() => t('s.pos'), '', (x) => (hasPos() ? [`${x.lat.toFixed(5)}, ${x.lon.toFixed(5)}`] : null)],
+  };
   function buildTm() {
-    const box = (id, label, unit = '', extra = '') => `<div class="tm" data-tm="${id}"><label>${esc(label)}</label><div><b>—</b>${unit ? `<small>${esc(unit)}</small>` : '<small></small>'}</div>${extra}</div>`;
     el('#tm').innerHTML = `<div class="tm-mode off" id="tmMode"><b>—</b><span><i></i><em style="font-style:normal"></em></span></div>
-      ${box('alt', t('tm.altRel'), 'm')}${box('spd', t('fl.tm.speed'), 'm/s')}${box('climb', t('tm.climb'), 'm/s')}${box('hdg', t('tm.heading'), '°')}${box('home', t('fl.tm.home'), 'm')}
-      ${box('batt', t('fl.tm.batt'), 'V', '<span class="bar"><i></i></span>')}${box('gps', 'GPS')}${box('time', t('fl.tm.time'))}${box('wp', t('ms.tab.mission'))}
-      <button type="button" class="tm-fold" id="tmFold" title="${esc(t('fl.tm.fold'))}">${icon('chevronDown')}</button>`;
+      ${tmFields.map((id) => `<div class="tm ${id === 'pos' ? 'wide' : ''}" data-tm="${id}"><label>${esc(TM[id][0]())}</label><div><b>—</b><small>${esc(TM[id][1])}</small></div>${TM[id][3] ? '<span class="bar"><i></i></span>' : ''}</div>`).join('')}
+      <button type="button" class="tm-fold" id="tmEdit" title="${esc(t('fl.tm.edit'))}">${icon('gear')}</button>
+      <button type="button" class="tm-fold tm-chev" id="tmFold" title="${esc(t('fl.tm.fold'))}">${icon('chevronDown')}</button>`;
     el('#tmFold').onclick = () => { const f = !el('#stage').classList.contains('ops-folded'); el('#stage').classList.toggle('ops-folded', f); window.api.setSettings({ flightOpsFolded: f }); };
-    const ro = new ResizeObserver(() => { const stg = el('#stage').style; stg.setProperty('--deck-h', `${el('#deck').offsetHeight}px`); stg.setProperty('--dock-h', `${el('#dock').offsetHeight}px`); });
-    ro.observe(el('#deck')); ro.observe(el('#dock'));
-    setInterval(paintTm, 1000);
+    el('#tmEdit').onclick = editTm;
+    if (!buildTm.once) {
+      buildTm.once = true;
+      const ro = new ResizeObserver(() => { const stg = el('#stage').style; stg.setProperty('--deck-h', `${el('#deck').offsetHeight}px`); stg.setProperty('--dock-h', `${el('#dock').offsetHeight}px`); });
+      ro.observe(el('#deck')); ro.observe(el('#dock'));
+      setInterval(paintTm, 1000);
+    }
   }
   function paintTm() {
     if (!el('#tm').firstChild) return;
     const x = st.telemetry || {};
     const live = !!st.linked;
-    const set = (id, value, cls = '', unit) => {
-      const b = el(`#tm [data-tm="${id}"]`);
-      b.className = `tm ${cls}`;
-      b.querySelector('b').textContent = value;
-      if (unit !== undefined) b.querySelector('small').textContent = unit;
-      return b;
-    };
-    const n = (v, d = 1) => (live && Number.isFinite(v) ? v.toFixed(d) : '—');
     const mode = el('#tmMode');
     mode.className = `tm-mode ${!live ? 'off' : st.armed ? 'armed' : ''}`;
     mode.querySelector('b').textContent = live ? (st.mode || '—') : t('dr.st.off');
     mode.querySelector('em').textContent = live ? t(st.armed ? 'dr.armed' : 'dr.disarmed') : (drone ? drone.name : '');
-    set('alt', n(x.altRel));
-    set('spd', n(x.groundspeed));
-    set('climb', live && Number.isFinite(x.climb) ? `${x.climb > 0.05 ? '+' : ''}${x.climb.toFixed(1)}` : '—');
-    set('hdg', live && Number.isFinite(x.heading) ? String(Math.round(x.heading)).padStart(3, '0') : '—');
-    const d = live && (x.homeLat || x.homeLon) && hasPos() ? FlightHud.distance(x.lat, x.lon, x.homeLat, x.homeLon) : NaN;
-    set('home', Number.isFinite(d) ? (d >= 1000 ? (d / 1000).toFixed(2) : String(Math.round(d))) : '—', '', Number.isFinite(d) && d >= 1000 ? 'km' : 'm');
-    const pct = live && Number.isFinite(x.batteryPct) && x.batteryPct >= 0 ? x.batteryPct : NaN;
-    const batt = set('batt', live && x.voltage ? x.voltage.toFixed(1) : '—', pct < 20 ? 'bad' : pct < 35 ? 'warn' : '', Number.isFinite(pct) ? `V · ${Math.round(pct)}%` : 'V');
-    batt.querySelector('.bar i').style.width = `${Number.isFinite(pct) ? Math.min(100, pct) : 0}%`;
-    const fix = Number(x.gpsFix) || 0;
-    set('gps', live && Number.isFinite(x.sats) ? String(x.sats) : '—', !live ? '' : fix >= 3 ? 'good' : fix >= 2 ? 'warn' : 'bad', live ? (fix >= 3 ? '3D' : fix === 2 ? '2D' : t('fl.tm.noFix')) : '');
     // Uçuş süresi: motorların etkin kaldığı toplam süre
     if (live && st.armed && !armedAt) armedAt = Date.now();
     if ((!live || !st.armed) && armedAt) { flownMs += Date.now() - armedAt; armedAt = 0; }
-    const sec = Math.floor((flownMs + (armedAt ? Date.now() - armedAt : 0)) / 1000);
-    const ms = st.mission || {};
-    const wp = set('wp', live && ms.loaded ? `${ms.current >= 0 ? ms.current + 1 : '—'}/${ms.count}` : '—');
-    wp.classList.toggle('hidden', !(live && ms.loaded));
-    set('time', `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`);
+    for (const id of tmFields) {
+      const b = el(`#tm [data-tm="${id}"]`);
+      if (!b) continue;
+      const f = TM[id];
+      let v = live || f[4] ? f[2](x) : null;
+      if (typeof v === 'number') v = Number.isFinite(v) ? [v.toFixed(1)] : null;
+      else if (!Array.isArray(v)) v = null;
+      b.className = `tm ${id === 'pos' ? 'wide' : ''} ${v && v[2] ? v[2] : ''} ${!v && (id === 'wp' || id === 'target') ? 'hidden' : ''}`; // görev / hedef yokken kutu gizlenir
+      b.querySelector('b').textContent = v ? v[0] : '—';
+      b.querySelector('small').textContent = v && v[1] !== undefined ? v[1] : f[1];
+      if (f[3]) b.querySelector('.bar i').style.width = `${v && v[3] ? Math.min(100, v[3]) : 0}%`;
+    }
+  }
+  // Telemetri çubuğunu düzenleme: gösterilecek kutular ve sıraları
+  function editTm() {
+    let order = [...tmFields, ...Object.keys(TM).filter((k) => !tmFields.includes(k))];
+    const on = new Set(tmFields);
+    const body = h('<div class="tm-edit"></div>');
+    const paint = () => {
+      body.innerHTML = `<div class="ms-note">${esc(t('fl.tm.editNote'))}</div>${order.map((k, i) => `<div class="tm-edit-row" data-k="${k}"><label class="ms-check"><input type="checkbox" ${on.has(k) ? 'checked' : ''}><span>${esc(t(`fl.tm.f.${k}`))}</span></label><span style="flex:1"></span><button class="icon-btn" data-up ${i ? '' : 'disabled'}>${icon('up')}</button><button class="icon-btn" data-down ${i < order.length - 1 ? '' : 'disabled'}>${icon('chevronDown')}</button></div>`).join('')}`;
+    };
+    body.addEventListener('change', (e) => { const row = e.target.closest('[data-k]'); if (row) { if (e.target.checked) on.add(row.dataset.k); else on.delete(row.dataset.k); } });
+    body.addEventListener('click', (e) => {
+      const row = e.target.closest('[data-k]'); const up = e.target.closest('[data-up]'); const down = e.target.closest('[data-down]');
+      if (!row || (!up && !down)) return;
+      const i = order.indexOf(row.dataset.k); const j = up ? i - 1 : i + 1;
+      if (j < 0 || j >= order.length) return;
+      [order[i], order[j]] = [order[j], order[i]]; paint();
+    });
+    paint();
+    const apply = (list) => { tmFields = list; window.api.setSettings({ flightTm: list }); buildTm(); paintTm(); };
+    inStage(openModal({ title: t('fl.tm.edit'), iconName: 'gear', width: 440, body,
+      buttons: [{ label: t('fl.tm.reset'), left: true, onClick: () => { order = [...TM_DEFAULT, ...Object.keys(TM).filter((k) => !TM_DEFAULT.includes(k))]; on.clear(); TM_DEFAULT.forEach((k) => on.add(k)); paint(); return false; } },
+        { label: t('common.giveUp'), value: null }, { label: t('common.ok'), cls: 'primary', onClick: () => { apply(order.filter((k) => on.has(k))); } }] }));
   }
 
   // --- Kayıt oynatma: kayıtlı telemetri canlı uçuş gibi gösterilir; alttaki çubuk oynatıcıya dönüşür ---
@@ -663,8 +712,11 @@
     if (s.flightTiles && typeof s.flightTiles === 'object') { for (const k of ['sat', 'street']) if (typeof s.flightTiles[k] === 'string') TILES[k] = { ...TILES[k], tiles: [s.flightTiles[k]] }; }
     settings0 = { flightTakeoffAlt: s.flightTakeoffAlt };
     el('#stage').classList.toggle('ops-folded', s.flightOpsFolded === true);
-    prefs = { layout: f.layout || 'mapPip', hud: s.flightHud !== false, follow: s.flightFollow !== false, style: s.flightStyle === 'street' ? 'street' : 'sat', tilt: s.flightTilt !== false, flat: s.flightFlat === true };
+    prefs = { layout: f.layout || 'mapPip', hud: ['transparent', 'instruments', 'compact', 'off'].includes(s.flightHudStyle) ? s.flightHudStyle : s.flightHud === false ? 'off' : 'transparent', follow: s.flightFollow !== false, style: s.flightStyle === 'street' ? 'street' : 'sat', tilt: s.flightTilt !== false, flat: s.flightFlat === true };
     hud = new FlightHud(el('#hud'));
+    inst = new InstrumentPanel(el('#inst'));
+    tmFields = Array.isArray(s.flightTm) && s.flightTm.length ? s.flightTm.filter((k) => TM[k]) : TM_DEFAULT.slice();
+    el('#btnDrone').classList.toggle('hidden', !drone || !!f.replay);
     paintTools();
     setLayoutMode(prefs.layout, false);
     paintDrone();
