@@ -46,6 +46,9 @@ class GlobeMap {
     const w = new C.CesiumWidget(this.el, { baseLayer: false, skyAtmosphere: new C.SkyAtmosphere(), scene3DOnly: true });
     this.w = w;
     w.scene.globe.baseColor = C.Color.fromCssColorString('#0b0e11');
+    // Hafif sahne: zayıf ekran kartlarında da akıcı kalsın
+    w.scene.msaaSamples = 1; w.scene.highDynamicRange = false; w.shadows = false;
+    if (w.scene.sun) w.scene.sun.show = false; if (w.scene.moon) w.scene.moon.show = false;
     // Düzenleyicide çizimler arazinin arkasında kalmasın; uçuşta gerçek derinlik kullanılır
     w.scene.globe.depthTestAgainstTerrain = !this.clamp;
     w.scene.screenSpaceCameraController.enableCollisionDetection = true;
@@ -78,7 +81,18 @@ class GlobeMap {
     w.screenSpaceEventHandler.removeInputAction(C.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
     this.dragPan = { isActive: () => this.dragging };
     w.camera.moveEnd.addEventListener(() => this._fire('move'));
-    w.scene.postRender.addEventListener(() => { for (const m of this.markers) m._place(); });
+    // Zayıf donanım: ilk saniyelerde kare hızı düşükse çözünürlük ve efektler kendiliğinden kısılır
+    let frames = 0; const t0 = performance.now(); let tuned = false;
+    w.scene.postRender.addEventListener(() => {
+      for (const m of this.markers) m._place();
+      if (tuned) return;
+      frames++;
+      const dt = performance.now() - t0;
+      if (dt > 4000) {
+        tuned = true;
+        if (frames / (dt / 1000) < 12) { this.lowPower = true; w.resolutionScale = 0.5; w.scene.fog.enabled = false; if (w.scene.skyAtmosphere) w.scene.skyAtmosphere.show = false; w.scene.globe.showGroundAtmosphere = false; w.scene.globe.maximumScreenSpaceError = 6; if (w.scene.postProcessStages.fxaa) w.scene.postProcessStages.fxaa.enabled = false; this._fire('lowpower'); }
+      }
+    });
     // Araziye oturtulan çizimler: arazi karoları yüklendikçe yükseklikler güncellenir
     if (this.clamp) this.clampTimer = setInterval(() => { if (!this.removed && this.terrainMode !== 'off') this._redrawAll(); }, 2500);
     requestAnimationFrame(() => { if (!this.removed) { this._fire('style.load'); this._fire('load'); } });
@@ -225,7 +239,7 @@ class GlobeMap {
       this.vehicleName = name;
       const old = this.vehicle; this.vehicle = null;
       if (old) this.w.scene.primitives.remove(old);
-      C.Model.fromGltfAsync({ url: `models/${name}.glb`, scale: 1.5, minimumPixelSize: 90, maximumScale: 6000, color: C.Color.fromCssColorString('#f43f5e'), colorBlendMode: C.ColorBlendMode.MIX, colorBlendAmount: 0.55 })
+      C.Model.fromGltfAsync({ url: `models/${name}.glb`, scale: 1.5, minimumPixelSize: 90, maximumScale: 6000, shadows: C.ShadowMode.DISABLED, backFaceCulling: true, color: C.Color.fromCssColorString('#f43f5e'), colorBlendMode: C.ColorBlendMode.MIX, colorBlendAmount: 0.55 })
         .then((m) => { if (this.removed || this.vehicleName !== name) return; this.vehicle = this.w.scene.primitives.add(m); this._fire('vehicle', true); })
         .catch((e) => { console.warn('3B model yüklenemedi:', e && e.message); this._fire('vehicle', false); });
     }

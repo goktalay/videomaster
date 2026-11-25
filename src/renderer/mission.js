@@ -556,6 +556,7 @@
 
   // Yükseklik profili: yol boyunca mesafeye karşı irtifa; arazi verisi varsa altına arazi çizilir (deniz seviyesine göre)
   function paintProfile() {
+    if (!doc || !map) return; // pencere açılırken (harita kurulmadan) çağrılabilir
     loadTerrain();
     const c = $('#profile');
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
