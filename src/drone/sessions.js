@@ -6,7 +6,7 @@
 const DRONE = require('./schema');
 
 // Pencerelerin çağırabildiği araç işlevleri
-const METHODS = new Set(['arm', 'setMode', 'motorTest', 'motorStop', 'calibrate', 'reboot', 'saveRcLimits', 'fetchParams', 'setParam', 'command', 'saveParams', 'exitCli', 'cli']);
+const METHODS = new Set(['arm', 'setMode', 'motorTest', 'motorStop', 'calibrate', 'reboot', 'saveRcLimits', 'fetchParams', 'setParam', 'command', 'saveParams', 'exitCli', 'cli', 'takeoff', 'land', 'rtl', 'hold', 'goto', 'setAltitude', 'kill']);
 
 // deps: { getDrone(id), emit(channel, payload), createVehicle(drone) → araç | null, paramDefs(firmware, vehicle) → sözlük | null }
 function createDroneSessions(deps) {

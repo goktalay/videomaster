@@ -41,11 +41,14 @@
 
     <div class="vw-main">
       <div class="vw-left">
+        <div class="fl-wrap" id="wrap">
+        <div class="fl-ops" id="ops"></div>
         <div class="fl-stage" id="stage" data-layout="mapPip">
           <div class="fl-pane fl-map" id="mapPane">
             <div id="map"></div>
             <div class="fl-map-tools" id="mapTools"></div>
             <div class="fl-map-note hidden" id="mapNote"></div>
+            <div class="fl-pick hidden" id="pickHint"></div>
           </div>
           <section class="vw-video fl-pane" id="video">
             <canvas id="canvas"></canvas>
@@ -55,6 +58,7 @@
           </section>
           <button class="fl-swap icon-btn" id="btnSwap"></button>
           <canvas id="hud"></canvas>
+        </div>
         </div>
         <div class="split-h" id="splitBottom"></div>
         <section class="vw-bottom" id="bottom">

@@ -732,3 +732,76 @@ test('vehicle: PX4 — kip adları, bayt bayt parametre kodlaması, CA_ROTOR yer
     assert.deepStrictEqual(cals.filter((c) => c.percent !== undefined).map((c) => c.percent), [20, 100]);
   } finally { clearInterval(hb); v.disconnect(); sock.close(); }
 });
+
+test('vehicle: temel uçuş işlemleri — kalkış, noktaya git, irtifa, bekle, eve dön, iniş, acil durdurma', async () => {
+  const v = new MavVehicle({ type: 'udpin', localPort: 0 }, { ...FAST });
+  let sim = null;
+  try {
+    assert.deepStrictEqual(await v.connect(), { ok: true });
+    assert.strictEqual((await v.takeoff(10)).error, 'not_connected');
+    sim = await createSim({ udp: { host: '127.0.0.1', port: v.link.localPort }, heartbeatMs: 150, interactive: true, simSpeed: 12, telemetryScale: 5 }).start();
+    await waitFor(() => v.snapshot().linked && Number.isFinite(v.snapshot().telemetry.lat) && v.snapshot().telemetry.lat !== 0, 4000, 'position');
+    assert.ok(v.snapshot().telemetry.altRel < 0.5);
+
+    // Kalkış: GUIDED + kur + NAV_TAKEOFF(param7 = irtifa)
+    let r = await v.takeoff(20);
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.alt, 20);
+    assert.strictEqual(sim.state.mode, 4);
+    assert.strictEqual(sim.state.armed, true);
+    assert.strictEqual(sim.calls.filter((c) => c.id === 22).pop().params[6], 20);
+    await waitFor(() => v.snapshot().telemetry.altRel > 19, 6000, 'climb');
+
+    // Noktaya git: DO_REPOSITION, COMMAND_INT ile (çerçeve 3 = eve göre irtifa); yön NaN kalır
+    const t0 = v.snapshot().telemetry;
+    r = await v.goto(t0.lat + 0.0006, t0.lon + 0.0004);
+    assert.strictEqual(r.ok, true);
+    let c = sim.calls.filter((x) => x.id === 192).pop();
+    assert.strictEqual(c.frame, 3);
+    assert.ok(Number.isNaN(c.params[3]));
+    assert.ok(Math.abs(c.params[4] - (t0.lat + 0.0006)) < 2e-7 && Math.abs(c.params[5] - (t0.lon + 0.0004)) < 2e-7);
+    assert.ok(Math.abs(c.params[6] - t0.altRel) < 1.5); // irtifa verilmedi: bulunulan irtifa
+    await waitFor(() => Math.abs(v.snapshot().telemetry.lat - (t0.lat + 0.0006)) < 1e-5, 8000, 'arrive');
+
+    r = await v.setAltitude(35);
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(sim.calls.filter((x) => x.id === 192).pop().params[6], 35);
+    assert.strictEqual((await v.goto(0, 0)).error, 'invalid');
+    assert.strictEqual((await v.goto(95, 10)).error, 'invalid');
+
+    r = await v.hold();
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.mode, 'BRAKE');
+    assert.strictEqual(sim.state.mode, 17);
+
+    r = await v.rtl();
+    assert.strictEqual(r.mode, 'RTL');
+    assert.strictEqual(sim.state.mode, 6);
+    r = await v.land();
+    assert.strictEqual(r.mode, 'LAND');
+    await waitFor(() => v.snapshot().armed === false && v.snapshot().telemetry.altRel < 0.5, 8000, 'landed and disarmed');
+
+    // Acil durdurma = zorla çözme
+    await v.takeoff(5);
+    r = await v.kill();
+    assert.strictEqual(r.ok, true);
+    assert.deepStrictEqual(sim.calls.filter((x) => x.id === 400).pop().params.slice(0, 2), [0, 21196]);
+  } finally { v.disconnect(); if (sim) await sim.stop(); }
+});
+
+test('vehicle: DO_REPOSITION desteklenmiyorsa GUIDED + SET_POSITION_TARGET_GLOBAL_INT kullanılır', async () => {
+  const v = new MavVehicle({ type: 'udpin', localPort: 0 }, { ...FAST });
+  let sim = null;
+  try {
+    await v.connect();
+    sim = await createSim({ udp: { host: '127.0.0.1', port: v.link.localPort }, heartbeatMs: 150, interactive: true, noReposition: true }).start();
+    await waitFor(() => v.snapshot().linked, 3000, 'linked');
+    assert.strictEqual((await v.arm(true)).ok, true);
+    const r = await v.goto(39.93, 32.87, 25);
+    assert.strictEqual(r.ok, true);
+    assert.deepStrictEqual(r.target, { lat: 39.93, lon: 32.87, alt: 25 });
+    await waitFor(() => sim.calls.some((x) => x.name === 'SET_POSITION_TARGET_GLOBAL_INT'), 2000, 'position target');
+    assert.deepStrictEqual(sim.calls.filter((x) => x.name === 'SET_POSITION_TARGET_GLOBAL_INT').pop().params, [399300000, 328700000, 25, 6, 0x0df8]);
+    assert.strictEqual(sim.state.mode, 4);
+  } finally { v.disconnect(); if (sim) await sim.stop(); }
+});

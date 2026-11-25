@@ -4,6 +4,7 @@
 //   node scripts/sim-drone.js                                 → UDP 127.0.0.1:14550'ye gönderir + TCP 5760'ı dinler
 //   node scripts/sim-drone.js --udp 127.0.0.1:14550 --tcp 5760
 //   node scripts/sim-drone.js --udp-listen 14551              → UDP kapısını dinler (uygulamada bağlantı türü "UDP")
+//   node scripts/sim-drone.js --interactive                   → araç yerde başlar; kalkış / noktaya git / iniş / eve dönüş komutlarına uyar
 // Diğer seçenekler: --sysid 1  --home 39.9255,32.8663[,890]  --drop 3,7,20 (ilk parametre listesinde düşürülecek indeksler)  --quiet
 // Uygulamada: bağlantı türü "UDP dinleme" (kapı 14550) ya da "TCP" (127.0.0.1:5760).
 
@@ -24,7 +25,7 @@ function parseArgs(argv) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    console.log('Kullanım: node scripts/sim-drone.js [--udp host:port] [--tcp port] [--udp-listen port] [--sysid n] [--home lat,lon[,alt]] [--drop i,j] [--quiet]');
+    console.log('Kullanım: node scripts/sim-drone.js [--udp host:port] [--tcp port] [--udp-listen port] [--sysid n] [--home lat,lon[,alt]] [--drop i,j] [--interactive] [--quiet]');
     return;
   }
   const opts = { sysid: Number(args.sysid) || 1 };
@@ -35,6 +36,7 @@ async function main() {
   }
   if (args.tcp || !explicit) opts.tcp = Number(args.tcp === true || !args.tcp ? 5760 : args.tcp) || 5760;
   if (args['udp-listen']) opts.udpListen = Number(args['udp-listen'] === true ? 14551 : args['udp-listen']) || 14551;
+  if (args.interactive) opts.interactive = true;
   if (args.home) {
     const [lat, lon, alt] = String(args.home).split(',').map(Number);
     if (Number.isFinite(lat) && Number.isFinite(lon)) opts.home = { lat, lon, ...(Number.isFinite(alt) ? { alt } : {}) };

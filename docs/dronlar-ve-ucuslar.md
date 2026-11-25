@@ -68,6 +68,26 @@ başlatılana kadar motorların etkinleşmesine izin vermez.
 - **Kamera paneli** (dişli düğmesi): akış penceresindeki bütün özellikler — akış ayarları, kamera kontrol, yapay görü; ayrıca
   kayıt, anlık görüntü, ses ve akış verisi paneli.
 
+### Uçuş işlemleri çubuğu
+
+Haritanın / kameranın üstündeki çubuk temel uçuş komutlarını verir (tam ekranda da görünür):
+
+| Düğme | Ne yapar |
+| --- | --- |
+| **Motorları etkinleştir / kapat** | Kurma (onay ister) ve çözme. Havadayken çözmeyi uçuş kartı reddeder. |
+| **Kalkış** | İrtifa sorar; aracı GUIDED kipine alır, motorları etkinleştirir ve o irtifaya yükseltir. ArduPlane'de TAKEOFF kipi kullanılır (irtifa aracın `TKOFF_ALT` ayarından gelir). |
+| **İniş** | Bulunduğu yere iner (kopter: LAND, VTOL: QLAND, PX4: Land). |
+| **Eve dön** | Kalkış noktasına döner (RTL / PX4: Return). |
+| **Bekle** | Olduğu yerde durur: kopter BRAKE (yoksa LOITER), uçak LOITER, kara aracı HOLD, PX4 Hold. |
+| **Uçuş kipi** | Aracın bütün kipleri; seçilen kipe geçer. |
+| **Noktaya git** | Düğmeye basıp haritada bir noktayı tıklayın (ya da haritaya sağ tıklayın). Araç bulunduğu irtifada o noktaya gider; hedef ve kalan uzaklık gösterilir. |
+| **İrtifa** | Bulunduğu konumda yeni irtifaya çıkar / iner. |
+| **Acil durdur** | Onaydan sonra motorları hemen keser. **Araç havadaysa düşer**; yalnız acil durumda kullanın. |
+
+- Komutlar ArduPilot ve PX4 içindir. Betaflight kumandadan uçurulur; çubukta komut görünmez.
+- "Noktaya git" ve "İrtifa" için aracın havada olması gerekir. Araç bir komutu reddederse nedeni (örn. kurma öncesi denetim iletisi) bildirim olarak görünür.
+- İrtifalar kalkış noktasına göredir.
+
 Bilinmesi gerekenler:
 
 - Harita karoları internetten iner: uydu görüntüsü Esri World Imagery, sokak haritası OpenStreetMap, arazi yüksekliği
@@ -84,8 +104,16 @@ node scripts/sim-drone.js
 
 Varsayılan olarak 127.0.0.1:14550'ye UDP gönderir (uygulamada **UDPIN 14550**) ve TCP 5760'ı dinler (**TCP 127.0.0.1:5760**).
 
+Varsayılan benzetim sürekli daire çizer. Uçuş işlemleri çubuğunu denemek için aracı yerde başlatan ve komutlara uyan kipi kullanın:
+
+```bash
+node scripts/sim-drone.js --interactive
+```
+
 ## Sınırlar
 
+- Uçuş komutları (kalkış, noktaya git, iniş…) yalnızca depodaki benzetimli araçla sınandı; gerçek ArduPilot / PX4 kartıyla ya da
+  gerçek SITL ile denenmedi. İlk denemeyi pervanesiz ya da benzetimde yapın.
 - Görev planlama, coğrafi çit, uçuş günlüğü indirme ve yazılım yükleme bu sürümde yoktur.
 - Betaflight sürücüsü sahte bir kartla sınandı; gerçek kartla ve gerçek Betaflight SITL ile denenmedi. Seri portta yeniden başlatma
   sonrası kendiliğinden yeniden bağlanma denenmedi.

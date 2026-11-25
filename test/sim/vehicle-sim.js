@@ -7,7 +7,8 @@
 //   udp        yer istasyonunun dinlediği kapıya gönderir (uygulamadaki "UDP dinleme" / udpin ile çalışır)
 //   udpListen  bir UDP kapısı dinler, karşı ucu ilk paketten öğrenir (uygulamadaki "UDP" ile çalışır); 0 = boş kapı
 //   tcp        TCP sunucusu (SITL gibi 5760); 0 = boş kapı
-// Seçenekler: sysid, home {lat, lon, alt}, heartbeatMs, telemetryScale (1 = gerçek hızlar), dropParams [indeksler] (ilk listede
+// Seçenekler: interactive (yerde başlar, komutlara uyar; yoksa daire çizer), simSpeed, noReposition (DO_REPOSITION desteklenmez),
+//   sysid, home {lat, lon, alt}, heartbeatMs, telemetryScale (1 = gerçek hızlar), dropParams [indeksler] (ilk listede
 //   düşürülür), calStepMs (kalibrasyon adım süresi), silent (hiçbir şey göndermez; bağlantı kopması sınaması için).
 // Dönen nesne: { start, stop, tcpPort, udpPort, calls [{ name, id, params }], params (Map ad → { value, type }),
 //   state, statustext(text, severity), setSilent(on) }
@@ -50,7 +51,7 @@ const DEFAULT_PARAMS = [
   ['WPNAV_SPEED_DN', 150, T.REAL32], ['WPNAV_SPEED_UP', 250, T.REAL32],
 ];
 
-const MODE_NAMES = { 0: 'Stabilize', 2: 'AltHold', 3: 'Auto', 4: 'Guided', 5: 'Loiter', 6: 'RTL', 9: 'Land' };
+const MODE_NAMES = { 0: 'Stabilize', 2: 'AltHold', 3: 'Auto', 4: 'Guided', 5: 'Loiter', 6: 'RTL', 9: 'Land', 17: 'Brake' };
 const ACCEL_PROMPTS = { 1: 'level', 2: 'on its LEFT side', 3: 'on its RIGHT side', 4: 'nose DOWN', 5: 'nose UP', 6: 'on its BACK' };
 const SENSORS = 0x1 | 0x2 | 0x4 | 0x8 | 0x20 | 0x400 | 0x800 | 0x1000 | 0x2000 | 0x4000 | 0x8000 | 0x10000 | 0x200000 | 0x400000; // jiroskop, ivmeölçer, pusula, barometre, GPS, denetleyiciler, RC, AHRS, batarya
 
@@ -66,7 +67,7 @@ function createSim(opts = {}) {
   const names = () => [...params.keys()];
   const drop = new Set(opts.dropParams || []);
 
-  const state = { armed: false, mode: 0, boot: Date.now(), seq: 0, silent: !!opts.silent, magCal: null, accelStep: 0, textId: 0, rebooted: 0, intervals: {}, streams: {} };
+  const state = { pos: opts.interactive ? { n: 0, e: 0, alt: 0, vn: 0, ve: 0, vd: 0, heading: 0, at: Date.now() } : null, target: null, armed: false, mode: 0, boot: Date.now(), seq: 0, silent: !!opts.silent, magCal: null, accelStep: 0, textId: 0, rebooted: 0, intervals: {}, streams: {} };
   const calls = [];
   const timers = new Set();
   const channels = []; // { send(buf), close() }
@@ -103,7 +104,43 @@ function createSim(opts = {}) {
   }
 
   // ---- Uçuş benzetimi: ev çevresinde 150 m yarıçaplı daire, 0–60 m arası irtifa ----
+  // interactive: araç yerde başlar ve komutlara uyar (kalkış, noktaya git, iniş, eve dönüş); simSpeed hızı çarpar
+  const mPerLon = 111320 * Math.cos(home.lat * Math.PI / 180);
+  function fly() {
+    const now = Date.now();
+    const p = state.pos;
+    const dt = Math.min((now - p.at) / 1000, 1) * (opts.simSpeed || 1);
+    p.at = now;
+    let tgt = null;
+    if (state.armed) {
+      if (state.mode === 9) tgt = { n: p.n, e: p.e, alt: 0 };
+      else if (state.mode === 6) { const near = Math.hypot(p.n, p.e) < 1; tgt = { n: 0, e: 0, alt: near ? 0 : Math.max(p.alt, 15) }; }
+      else if (state.mode === 4 && state.target) tgt = state.target;
+    } else if (p.alt > 0) { p.alt = Math.max(0, p.alt - 9 * dt); p.vd = 9; }
+    p.vn = 0; p.ve = 0; if (state.armed) p.vd = 0;
+    if (tgt) {
+      const dn = tgt.n - p.n; const de = tgt.e - p.e; const d = Math.hypot(dn, de);
+      if (d > 0.05 && p.alt > 0.5) {
+        const v = Math.min(12, d / Math.max(dt, 1e-3));
+        p.vn = (dn / d) * v; p.ve = (de / d) * v;
+        p.n += p.vn * dt; p.e += p.ve * dt;
+        if (d > 1) p.heading = ((Math.atan2(de, dn) * 180 / Math.PI) + 360) % 360;
+      }
+      const da = tgt.alt - p.alt;
+      if (Math.abs(da) > 0.02) { const v = Math.sign(da) * Math.min(3, Math.abs(da) / Math.max(dt, 1e-3)); p.alt += v * dt; p.vd = -v; }
+      if ((state.mode === 9 || state.mode === 6) && tgt.alt === 0 && p.alt <= 0.05) { p.alt = 0; state.armed = false; state.target = null; statustext('Disarming motors', 6); sendHeartbeat(); }
+    }
+    const speed = Math.hypot(p.vn, p.ve);
+    return {
+      t: (now - state.boot) / 1000, rel: p.alt, vn: p.vn, ve: p.ve, vd: p.vd, heading: p.heading, speed,
+      lat: home.lat + p.n / 111320, lon: home.lon + p.e / mPerLon,
+      roll: speed > 0.5 ? 0.05 : 0, pitch: speed > 0.5 ? -0.12 : 0, yaw: p.heading * Math.PI / 180,
+    };
+  }
+  const toLocal = (lat, lon) => ({ n: (lat - home.lat) * 111320, e: (lon - home.lon) * mPerLon });
+
   function flight() {
+    if (state.pos) return fly();
     const t = (Date.now() - state.boot) / 1000;
     const R = 150;
     const omega = (2 * Math.PI) / 90; // 90 sn'de bir tur
@@ -224,7 +261,7 @@ function createSim(opts = {}) {
     const id = f.command;
     const p = [f.param1, f.param2, f.param3, f.param4, f.param5, f.param6, f.param7];
     const def = COMMANDS[id];
-    calls.push({ name: def ? def.name : `CMD_${id}`, id, params: p });
+    calls.push({ name: def ? def.name : `CMD_${id}`, id, params: p, ...(f.frame !== undefined ? { frame: f.frame } : {}) });
     switch (id) {
       case 400: { // MAV_CMD_COMPONENT_ARM_DISARM
         const on = p[0] >= 0.5;
@@ -293,6 +330,23 @@ function createSim(opts = {}) {
         break;
       case 520: ack(id, 0); sendVersion(); break; // MAV_CMD_REQUEST_AUTOPILOT_CAPABILITIES
       case 179: ack(id, 0); break; // MAV_CMD_DO_SET_HOME
+      case 22: { // MAV_CMD_NAV_TAKEOFF (GUIDED kipinde ve kuruluyken)
+        if (!state.armed || state.mode !== 4) { statustext('Takeoff: not armed or not in GUIDED', 4); ack(id, 4); break; }
+        const cur = state.pos || { n: 0, e: 0 };
+        state.target = { n: cur.n, e: cur.e, alt: p[6] };
+        ack(id, 0);
+        break;
+      }
+      case 192: { // MAV_CMD_DO_REPOSITION (COMMAND_INT)
+        if (opts.noReposition) { ack(id, 3); break; }
+        if (!state.armed) { ack(id, 4); break; }
+        if (state.mode !== 4) { if (!(Math.round(p[1]) & 1)) { ack(id, 2); break; } state.mode = 4; sendHeartbeat(); }
+        state.target = { ...toLocal(p[4], p[5]), alt: p[6], lat: p[4], lon: p[5] };
+        ack(id, 0);
+        break;
+      }
+      case 20: state.mode = 6; ack(id, 0); sendHeartbeat(); break; // MAV_CMD_NAV_RETURN_TO_LAUNCH
+      case 21: state.mode = 9; ack(id, 0); sendHeartbeat(); break; // MAV_CMD_NAV_LAND
       default: ack(id, 3); // MAV_RESULT_UNSUPPORTED
     }
   }
@@ -310,6 +364,11 @@ function createSim(opts = {}) {
     if ('target_system' in f && f.target_system !== 0 && f.target_system !== sysid) return;
     switch (msg.name) {
       case 'COMMAND_LONG': onCommand(f); break;
+      case 'COMMAND_INT': onCommand({ command: f.command, param1: f.param1, param2: f.param2, param3: f.param3, param4: f.param4, param5: f.x / 1e7, param6: f.y / 1e7, param7: f.z, frame: f.frame }); break;
+      case 'SET_POSITION_TARGET_GLOBAL_INT':
+        calls.push({ name: 'SET_POSITION_TARGET_GLOBAL_INT', id: -1, params: [f.lat_int, f.lon_int, f.alt, f.coordinate_frame, f.type_mask] });
+        if (state.mode === 4) state.target = { ...toLocal(f.lat_int / 1e7, f.lon_int / 1e7), alt: f.alt, lat: f.lat_int / 1e7, lon: f.lon_int / 1e7 };
+        break;
       case 'PARAM_REQUEST_LIST': {
         calls.push({ name: 'PARAM_REQUEST_LIST', id: -1, params: [] });
         const list = names();

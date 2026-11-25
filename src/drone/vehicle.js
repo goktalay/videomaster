@@ -41,8 +41,12 @@ const CMD = {
   SET_MESSAGE_INTERVAL: 511,
   REQUEST_MESSAGE: 512,
   REQUEST_AUTOPILOT_CAPABILITIES: 520,
+  NAV_RETURN_TO_LAUNCH: 20,
+  NAV_LAND: 21,
+  NAV_TAKEOFF: 22,
   DO_SET_MODE: 176,
   DO_SET_HOME: 179,
+  DO_REPOSITION: 192,
   DO_MOTOR_TEST: 209,
   ACTUATOR_TEST: 310,
   PREFLIGHT_CALIBRATION: 241,
@@ -592,7 +596,7 @@ class MavVehicle extends EventEmitter {
     return run;
   }
 
-  _runCommand(id, p, { timeoutMs = 3000, retries = 2, progressTimeoutMs = 30000 }) {
+  _runCommand(id, p, { timeoutMs = 3000, retries = 2, progressTimeoutMs = 30000, int = null }) {
     return new Promise((resolve) => {
       if (!this.ready) { resolve({ ok: false, result: null, resultName: null, error: 'not_connected' }); return; }
       let attempt = 0;
@@ -621,10 +625,16 @@ class MavVehicle extends EventEmitter {
       };
       this._pendingCmd.set(id, pending);
       const send = () => {
-        const sent = this._send('COMMAND_LONG', {
+        // NaN "değiştirme / araç seçsin" anlamına gelir (yön, konum); sıfıra çevrilmez
+        const n = (v) => (typeof v === 'number' && Number.isNaN(v) ? NaN : Number(v) || 0);
+        // int: { frame } verilirse COMMAND_INT gönderilir (param5/6 = enlem/boylam derece → x/y 1e7 tamsayı)
+        const sent = int ? this._send('COMMAND_INT', {
+          target_system: this.sysid, target_component: this.compid, command: id, frame: int.frame || 0, current: 0, autocontinue: 0,
+          param1: n(p[0]), param2: n(p[1]), param3: n(p[2]), param4: n(p[3]),
+          x: Math.round((Number(p[4]) || 0) * 1e7), y: Math.round((Number(p[5]) || 0) * 1e7), z: n(p[6]),
+        }) : this._send('COMMAND_LONG', {
           target_system: this.sysid, target_component: this.compid, command: id, confirmation: Math.min(attempt, 255),
-          param1: Number(p[0]) || 0, param2: Number(p[1]) || 0, param3: Number(p[2]) || 0, param4: Number(p[3]) || 0,
-          param5: Number(p[4]) || 0, param6: Number(p[5]) || 0, param7: Number(p[6]) || 0,
+          param1: n(p[0]), param2: n(p[1]), param3: n(p[2]), param4: n(p[3]), param5: n(p[4]), param6: n(p[5]), param7: n(p[6]),
         });
         if (!sent) { pending.finish({ ok: false, result: null, resultName: null, error: 'not_connected' }); return; }
         pending.timer = this._later(() => {
@@ -675,6 +685,139 @@ class MavVehicle extends EventEmitter {
       step();
     });
   }
+
+  // ---- Temel uçuş işlemleri (uçuş penceresindeki araç çubuğu) ----
+  // Hepsi { ok, error?, ... } döndürür. Araç sınıfına uymayan işlem 'unsupported' olur.
+  _hasMode(name) { return this.modes().some((m) => m.name.toLowerCase() === String(name).toLowerCase()); }
+
+  // Adı verilen kiplerden araçta bulunan ilkine geçer
+  async _firstMode(names) {
+    let last = { ok: false, error: 'unsupported' };
+    for (const name of names) {
+      if (!this._hasMode(name)) continue;
+      last = await this.setMode(name);
+      if (last.ok) return last;
+    }
+    return last;
+  }
+
+  // Kalkış: gerekirse kurar, sonra `alt` metre (kalkış noktasına göre) yükselir.
+  //   ArduCopter/heli: GUIDED + kur + NAV_TAKEOFF   ·   ArduPlane: TAKEOFF kipi + kur (VTOL: QLOITER/GUIDED + NAV_TAKEOFF)
+  //   PX4: kur + NAV_TAKEOFF (irtifa deniz seviyesine göre)
+  async takeoff(alt = 10) {
+    if (!this.ready) return { ok: false, error: 'not_connected' };
+    const h = Math.min(Math.max(Number(alt) || 0, 1), 500);
+    const cls = this.vehicle;
+    const armIfNeeded = async () => {
+      if (this.armed) return { ok: true };
+      const a = await this.arm(true);
+      if (!a.ok) return { ...a, step: 'arm' };
+      await this._waitFor(() => this.armed, 3000);
+      return a;
+    };
+    if (this.firmware === 'px4') {
+      if (cls === 'rover' || cls === 'sub') return { ok: false, error: 'unsupported' };
+      const a = await armIfNeeded();
+      if (!a.ok) return a;
+      const t = this.telemetry;
+      const ground = Number.isFinite(t.altMsl) ? t.altMsl - (Number.isFinite(t.altRel) ? t.altRel : 0) : NaN;
+      const r = await this.command(CMD.NAV_TAKEOFF, [-1, 0, 0, NaN, NaN, NaN, Number.isFinite(ground) ? ground + h : NaN], { retries: 1 });
+      return r.ok ? { ...r, alt: h } : { ...r, step: 'takeoff' };
+    }
+    if (this.firmware !== 'ardupilot') return { ok: false, error: 'unsupported' };
+    if (cls === 'plane') {
+      const m = await this._firstMode(['TAKEOFF']);
+      if (!m.ok) return { ...m, step: 'mode' };
+      const a = await armIfNeeded();
+      return a.ok ? { ok: true, alt: null, mode: 'TAKEOFF' } : a;
+    }
+    if (cls !== 'copter' && cls !== 'heli' && cls !== 'vtol') return { ok: false, error: 'unsupported' };
+    const m = await this._firstMode(['GUIDED']);
+    if (!m.ok) return { ...m, step: 'mode' };
+    const a = await armIfNeeded();
+    if (!a.ok) return a;
+    const r = await this.command(CMD.NAV_TAKEOFF, [0, 0, 0, 0, 0, 0, h], { retries: 1 });
+    return r.ok ? { ...r, alt: h } : { ...r, step: 'takeoff' };
+  }
+
+  // İniş: bulunduğu yere iner
+  async land() {
+    if (!this.ready) return { ok: false, error: 'not_connected' };
+    if (this.firmware === 'px4') {
+      const m = await this._firstMode(['Land']);
+      return m.ok ? m : this.command(CMD.NAV_LAND, [0, 0, 0, NaN, NaN, NaN, 0], { retries: 1 });
+    }
+    switch (this.vehicle) {
+      case 'copter': case 'heli': return this._firstMode(['LAND']);
+      case 'vtol': return this._firstMode(['QLAND']);
+      case 'plane': return this._firstMode(['AUTOLAND', 'QLAND']);
+      case 'sub': return this._firstMode(['SURFACE']);
+      default: return { ok: false, error: 'unsupported' };
+    }
+  }
+
+  // Eve dönüş
+  async rtl() {
+    if (!this.ready) return { ok: false, error: 'not_connected' };
+    const m = await this._firstMode(this.firmware === 'px4' ? ['Return'] : this.vehicle === 'vtol' ? ['QRTL', 'RTL'] : ['RTL', 'SMART_RTL']);
+    if (m.ok || this.vehicle === 'sub') return m;
+    return this.command(CMD.NAV_RETURN_TO_LAUNCH, [], { retries: 1 });
+  }
+
+  // Bekle: olduğu yerde dur / tur at (kopter: BRAKE, yoksa LOITER; uçak: LOITER; kara aracı: HOLD; denizaltı: POSHOLD; PX4: Hold)
+  hold() {
+    if (!this.ready) return Promise.resolve({ ok: false, error: 'not_connected' });
+    if (this.firmware === 'px4') return this._firstMode(['Hold']);
+    switch (this.vehicle) {
+      case 'copter': case 'heli': return this._firstMode(['BRAKE', 'LOITER', 'POSHOLD']);
+      case 'vtol': return this._firstMode(['QLOITER', 'LOITER']);
+      case 'plane': return this._firstMode(['LOITER']);
+      case 'rover': return this._firstMode(['HOLD']);
+      case 'sub': return this._firstMode(['POSHOLD', 'ALT_HOLD']);
+      default: return { ok: false, error: 'unsupported' };
+    }
+  }
+
+  // Noktaya git: enlem/boylam (derece), alt = kalkış noktasına göre metre (verilmezse bulunulan irtifa).
+  //   Önce DO_REPOSITION (COMMAND_INT; kipi kendisi GUIDED/Hold yapar); araç desteklemiyorsa ArduPilot'ta
+  //   GUIDED kipi + SET_POSITION_TARGET_GLOBAL_INT.
+  async goto(lat, lon, alt) {
+    if (!this.ready) return { ok: false, error: 'not_connected' };
+    const la = Number(lat); const lo = Number(lon);
+    if (!Number.isFinite(la) || !Number.isFinite(lo) || Math.abs(la) > 90 || Math.abs(lo) > 180 || (!la && !lo)) return { ok: false, error: 'invalid' };
+    const t = this.telemetry;
+    const cur = Number.isFinite(t.altRel) ? t.altRel : 0;
+    const rel = Math.min(Math.max(Number.isFinite(Number(alt)) && alt !== null && alt !== undefined && alt !== '' ? Number(alt) : cur, this.vehicle === 'rover' ? 0 : 1), 5000);
+    const target = { lat: la, lon: lo, alt: rel };
+    if (this.firmware === 'px4') {
+      const ground = Number.isFinite(t.altMsl) ? t.altMsl - cur : NaN;
+      const r = await this.command(CMD.DO_REPOSITION, [-1, 1, 0, NaN, la, lo, Number.isFinite(ground) ? ground + rel : NaN], { retries: 1, int: { frame: 0 } });
+      return r.ok ? { ...r, target } : r;
+    }
+    if (this.firmware !== 'ardupilot') return { ok: false, error: 'unsupported' };
+    const r = await this.command(CMD.DO_REPOSITION, [-1, 1, 0, NaN, la, lo, rel], { retries: 1, int: { frame: 3 } });
+    if (r.ok) return { ...r, target };
+    if (r.result !== null && r.result !== MAV_RESULT_UNSUPPORTED) return r; // araç açıkça reddetti (kurulu değil, konum yok…)
+    if (this.mode !== 'GUIDED') {
+      const m = await this._firstMode(['GUIDED']);
+      if (!m.ok) return { ...m, step: 'mode' };
+    }
+    // type_mask: yalnız konum kullanılır (hız, ivme, yön yok sayılır)
+    const sent = this._send('SET_POSITION_TARGET_GLOBAL_INT', {
+      time_boot_ms: 0, target_system: this.sysid, target_component: this.compid, coordinate_frame: 6, type_mask: 0x0df8,
+      lat_int: Math.round(la * 1e7), lon_int: Math.round(lo * 1e7), alt: rel, vx: 0, vy: 0, vz: 0, afx: 0, afy: 0, afz: 0, yaw: 0, yaw_rate: 0,
+    });
+    return sent ? { ok: true, result: null, resultName: null, target } : { ok: false, error: 'not_connected' };
+  }
+
+  // İrtifa değiştir: bulunulan konumda `alt` metreye çık / in
+  setAltitude(alt) {
+    const t = this.telemetry;
+    return this.goto(t.lat, t.lon, alt);
+  }
+
+  // Acil durdurma: uçuşta olsa bile motorları hemen keser (araç düşer!)
+  kill() { return this.arm(false, true); }
 
   reboot() { return this.command(CMD.PREFLIGHT_REBOOT_SHUTDOWN, [1], { retries: 0 }); }
 

@@ -11,6 +11,12 @@ document.documentElement.dir = (I18N.LANGUAGES[LANG] || {}).dir || 'ltr';
 const ICONS = {
   plus: '<path d="M12 5v14M5 12h14"/>',
   minus: '<path d="M5 12h14"/>',
+  takeoff: '<path d="M12 17V4M6 10l6-6 6 6M4 21h16"/>',
+  land: '<path d="M12 3v13M6 10l6 6 6-6M4 21h16"/>',
+  power: '<path d="M12 3v9"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/>',
+  pin: '<path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  altitude: '<path d="M7 20V4M3 8l4-4 4 4M14 8h7M14 12h5M14 16h7M14 20h5"/>',
+  alert: '<path d="M12 3 2.5 20h19z"/><path d="M12 10v5M12 17.6v.1"/>',
   folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
   folderPlus: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v5M9.5 13.5h5"/>',
   file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',

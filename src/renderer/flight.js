@@ -65,10 +65,13 @@
     if (document.fullscreenElement) return document.exitFullscreen();
     beforeFull = prefs.layout;
     setLayoutMode(l, false);
-    return el('#stage').requestFullscreen().catch(() => {});
+    return el('#wrap').requestFullscreen().catch(() => {});
   }
   window.VW_FULLSCREEN = () => fullscreen('video');
-  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && beforeFull) { setLayoutMode(beforeFull, false); beforeFull = null; } if (map) setTimeout(() => map.resize(), 80); });
+  document.addEventListener('fullscreenchange', () => {
+    // Bildirimler tam ekrandaki öğenin içinde olmalı, yoksa görünmez
+    (document.fullscreenElement || document.body).appendChild(toastHost());
+    if (!document.fullscreenElement && beforeFull) { setLayoutMode(beforeFull, false); beforeFull = null; } if (map) setTimeout(() => map.resize(), 80); });
 
   // --- Harita ---
   function paintTools() {
@@ -123,6 +126,8 @@
     });
     let tileErrors = 0;
     map.on('error', () => { if (++tileErrors === 6) { el('#mapNote').textContent = t('fl.mapOffline'); el('#mapNote').classList.remove('hidden'); } });
+    map.on('click', (e) => { if (picking) { setPicking(false); goTo(e.lngLat.lat, e.lngLat.lng, false); } });
+    map.on('contextmenu', (e) => { if (prefs.layout !== 'videoPip') goTo(e.lngLat.lat, e.lngLat.lng, true); });
     map.on('dragstart', () => { if (prefs.follow) { prefs.follow = false; paintTools(); } });
     // Katmanlar stil yüklenince eklenir (karolar inmese de dron ve izi çizilsin)
     map.once('style.load', () => {
@@ -136,6 +141,9 @@
       // İzin 3B "perdesi": her parça uçulan yüksekliğe kadar yükselir
       map.addLayer({ id: 'curtain', type: 'fill-extrusion', source: 'curtain', paint: { 'fill-extrusion-color': '#22d3ee', 'fill-extrusion-height': ['get', 'h'], 'fill-extrusion-base': 0, 'fill-extrusion-opacity': 0.42 } });
       map.addLayer({ id: 'craft', type: 'fill-extrusion', source: 'craft', paint: { 'fill-extrusion-color': '#f43f5e', 'fill-extrusion-height': ['get', 'top'], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-opacity': 0.95 } });
+      map.addSource('target', { type: 'geojson', data: empty });
+      map.addLayer({ id: 'targetLine', type: 'line', source: 'target', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': '#a78bfa', 'line-width': 2, 'line-dasharray': [2, 2] } });
+      map.addLayer({ id: 'target', type: 'circle', source: 'target', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 8, 'circle-color': '#a78bfa', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2.5 } });
       map.addLayer({ id: 'home', type: 'circle', source: 'home', paint: { 'circle-radius': 7, 'circle-color': '#34d399', 'circle-stroke-color': '#06121c', 'circle-stroke-width': 2 } });
       const m = document.createElement('div');
       m.className = 'fl-marker';
@@ -192,6 +200,7 @@
       if (track.length > 20000) track.splice(0, track.length - 20000);
       paintTrack(false);
     }
+    paintTarget();
     if (mapReady && (x.homeLat || x.homeLon)) map.getSource('home').setData({ type: 'Feature', geometry: { type: 'Point', coordinates: [x.homeLon, x.homeLat] } });
     if (mapReady && prefs.follow && shown && !map.isMoving()) map.easeTo({ center: [x.lon, x.lat], duration: 450, easing: (n) => n });
   }
@@ -212,6 +221,7 @@
     st = { telemetry: {}, ...next };
     paintDrone();
     if (hud) hud.update(st.telemetry, st);
+    paintOps();
     onTelemetry();
   }
   window.api.onDroneState((m) => { if (drone && m.id === drone.id) applyState(m.state); });
@@ -220,6 +230,179 @@
   el('#drState').onclick = async () => { if (!drone) return; if (st.connected) await window.api.droneDisconnect(drone.id); else applyState(await window.api.droneConnect(drone.id)); };
   el('#drState').title = t('fl.toggleLink');
 
+  // --- Temel uçuş işlemleri çubuğu ---
+  // Kur/kapat, kalkış, iniş, eve dön, bekle, uçuş kipi, noktaya git, irtifa, acil durdur. Komutlar ana süreçteki araca gider.
+  let picking = false;
+  let target = null;      // { lat, lon, alt }
+  let busy = null;        // süren işlemin adı (düğmeler o sırada kilitlenir)
+  let opsKey = '';
+  let modesKey = '';
+  const hasPos = () => { const x = st.telemetry || {}; return Number.isFinite(x.lat) && Number.isFinite(x.lon) && !!(x.lat || x.lon); };
+  const call = (method, ...args) => window.api.droneCall(drone.id, method, ...args);
+  // Tam ekranda pencereler tam ekrandaki öğenin içine alınır
+  function inStage(promise) { const b = [...document.querySelectorAll('.modal-backdrop')].pop(); if (b && document.fullscreenElement) document.fullscreenElement.appendChild(b); return promise; }
+  function opReport(r, what) {
+    if (r && r.ok) { toast(what, { type: 'ok', timeout: 2400 }); return true; }
+    const why = r && r.error ? tOpt(`dr.err.${r.error}`, r.resultName || r.error) : '';
+    toast(r && r.step ? tOpt(`fl.op.step.${r.step}`, t('dr.failed')) : t('dr.failed'), { type: 'err', sub: `${what}${why ? ` — ${why}` : ''}`, timeout: 6000 });
+    return false;
+  }
+  async function run(name, what, fn) {
+    if (busy || !drone) return null;
+    busy = name; paintOps();
+    let r;
+    try { r = await fn(); } catch (e) { r = { ok: false, error: 'error', resultName: String((e && e.message) || e) }; }
+    busy = null; paintOps();
+    opReport(r, what);
+    return r;
+  }
+
+  function caps() {
+    const fw = st.firmware; const v = st.vehicle;
+    const mav = fw === 'ardupilot' || fw === 'px4';
+    return {
+      mav,
+      takeoff: mav && (fw === 'px4' ? v !== 'rover' && v !== 'sub' : ['copter', 'heli', 'vtol', 'plane'].includes(v)),
+      land: mav && v !== 'rover' && !(fw === 'ardupilot' && v === 'other'),
+      alt: mav && v !== 'rover',
+    };
+  }
+
+  function buildOps() {
+    const b = (id, ic, label, cls = '') => `<button class="btn ${cls}" data-op="${id}" title="${esc(tOpt(`fl.op.tip.${id}`, label))}">${icon(ic)}<span>${esc(label)}</span></button>`;
+    el('#ops').innerHTML = `${b('arm', 'power', t('dr.arm'))}${b('takeoff', 'takeoff', t('fl.op.takeoff'), 'go')}${b('land', 'land', t('fl.op.land'))}${b('rtl', 'home', t('fl.op.rtl'))}${b('hold', 'pause', t('fl.op.hold'))}
+      <span class="sep"></span><select class="input" id="opMode" title="${esc(t('fl.op.mode'))}"></select>
+      <span class="sep"></span>${b('goto', 'pin', t('fl.op.goto'))}${b('alt', 'altitude', t('fl.op.alt'))}
+      <span class="op-target hidden" id="opTarget"><span></span><button type="button" data-op="clearTarget" title="${esc(t('fl.op.clearTarget'))}">${icon('x')}</button></span>
+      <span class="op-note hidden" id="opNote"></span><span style="flex:1"></span>${b('kill', 'alert', t('fl.op.kill'), 'kill')}`;
+    el('#pickHint').textContent = t('fl.op.pickHint');
+  }
+
+  function paintOps() {
+    const ops = el('#ops');
+    if (!ops.firstChild) buildOps();
+    const c = caps();
+    const on = !!drone && st.linked && c.mav;
+    const key = [on, st.firmware, st.vehicle, st.armed, busy, picking, !!drone, st.linked].join('|');
+    if (key !== opsKey) {
+      opsKey = key;
+      const q = (id) => ops.querySelector(`[data-op="${id}"]`);
+      const set = (id, show, enabled) => { const x = q(id); x.classList.toggle('hidden', !show); x.disabled = !enabled || !!busy; };
+      const arm = q('arm');
+      arm.classList.toggle('armed', !!st.armed);
+      arm.querySelector('span').textContent = st.armed ? t('dr.disarm') : t('dr.arm');
+      const bf = st.firmware === 'betaflight';
+      set('arm', !bf, on);
+      set('takeoff', !bf && (c.takeoff || !st.linked), on && c.takeoff);
+      set('land', !bf && (c.land || !st.linked), on && c.land);
+      set('rtl', !bf, on);
+      set('hold', !bf, on);
+      set('goto', !bf, on);
+      set('alt', !bf && (c.alt || !st.linked), on && c.alt);
+      set('kill', !bf, on && !!st.armed);
+      q('goto').classList.toggle('on', picking);
+      for (const x of ops.querySelectorAll('.sep')) x.classList.toggle('hidden', bf);
+      const note = el('#opNote');
+      note.textContent = bf && st.linked ? t('fl.op.bfNote') : !st.linked ? t('fl.op.offNote') : '';
+      note.classList.toggle('hidden', !note.textContent);
+      el('#opMode').classList.toggle('hidden', bf);
+      el('#opMode').disabled = !on || !!busy;
+    }
+    // Kip listesi: araç türü değişince yeniden kurulur; açıkken dokunulmaz
+    const sel = el('#opMode');
+    const modes = st.linked && Array.isArray(st.modes) ? st.modes : [];
+    const mk = modes.map((m) => m.name).join(',');
+    if (mk !== modesKey) { modesKey = mk; sel.innerHTML = `<option value="" disabled>${esc(t('fl.op.mode'))}</option>${modes.map((m) => `<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('')}`; }
+    if (document.activeElement !== sel) { const cur = modes.some((m) => m.name === st.mode) ? st.mode : ''; if (sel.value !== cur) sel.value = cur; }
+  }
+
+  function numberForm({ title, iconName, label, note, value, min, max, okText, okCls }) {
+    return inStage(openModal({
+      title, iconName, width: 440,
+      body: `<div class="op-form">${label ? `<div class="field"><label>${esc(label)}</label><input class="input" type="number" id="opNum" min="${min}" max="${max}" step="1" value="${value}"></div>` : ''}${note ? `<div class="op-warn">${icon('alert')}<span>${esc(note)}</span></div>` : ''}</div>`,
+      buttons: [{ label: t('common.giveUp'), value: null }, { label: okText, cls: okCls || 'primary', onClick: (m) => { const i = m.querySelector('#opNum'); if (!i) return true; const v = Number(i.value); if (!Number.isFinite(v) || v < min || v > max) { i.classList.add('invalid'); return false; } return v; } }],
+      onMount: (m) => enhanceNumbers(m),
+    }));
+  }
+
+  function setPicking(onNow) {
+    picking = !!onNow && !!map;
+    el('#mapPane').classList.toggle('picking', picking);
+    el('#pickHint').classList.toggle('hidden', !picking);
+    if (picking && !['mapPip', 'split', 'map'].includes(prefs.layout)) setLayoutMode(HAS_CAM ? 'mapPip' : 'map', false);
+    paintOps();
+  }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && picking) setPicking(false); });
+
+  async function goTo(lat, lon, ask) {
+    if (!drone || !st.linked || !caps().mav || busy) return;
+    const x = st.telemetry || {};
+    const rover = st.vehicle === 'rover';
+    if (!rover && (!st.armed || !(x.altRel > 1))) { toast(t('fl.op.needAir'), { type: 'err' }); return; }
+    const alt = rover ? 0 : Math.max(1, Math.round(x.altRel));
+    if (ask && !await inStage(confirmBox(t('fl.op.goto'), t('fl.op.gotoConfirm', { lat: lat.toFixed(6), lon: lon.toFixed(6), alt }), { okText: t('fl.op.goto'), danger: false }))) return;
+    const r = await run('goto', t('fl.op.gotoSent'), () => call('goto', lat, lon, rover ? 0 : x.altRel));
+    if (r && r.ok) { target = { lat, lon, alt }; paintTarget(); }
+  }
+
+  function paintTarget() {
+    const box = el('#opTarget');
+    const x = st.telemetry || {};
+    if (target && hasPos()) {
+      const d = FlightHud.distance(x.lat, x.lon, target.lat, target.lon);
+      // Varınca ya da araç yere inip motorlar kapanınca işaret kalkar
+      if (d < 2.5 || !st.linked || !st.armed) target = null;
+      else if (box) { box.firstElementChild.textContent = t('fl.op.target', { dist: d >= 1000 ? `${(d / 1000).toFixed(2)} km` : `${Math.round(d)} m` }); box.classList.remove('hidden'); }
+    }
+    if (!target && box) box.classList.add('hidden');
+    if (!mapReady) return;
+    const feats = target ? [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [target.lon, target.lat] } }] : [];
+    if (target && hasPos()) feats.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[x.lon, x.lat], [target.lon, target.lat]] } });
+    map.getSource('target').setData({ type: 'FeatureCollection', features: feats });
+  }
+
+  el('#ops').addEventListener('change', async (e) => {
+    if (e.target.id !== 'opMode' || !e.target.value) return;
+    const name = e.target.value;
+    e.target.blur();
+    await run('mode', t('fl.op.modeSet', { mode: name }), () => call('setMode', name));
+  });
+  el('#ops').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-op]');
+    if (!b || b.disabled || !drone) return;
+    const op = b.dataset.op;
+    const x = st.telemetry || {};
+    if (op === 'clearTarget') { target = null; paintTarget(); return; }
+    if (op === 'arm') {
+      if (st.armed) { await run('arm', t('dr.disarm'), () => call('arm', false)); return; }
+      if (await inStage(confirmBox(t('dr.arm'), esc(t('dr.armConfirm')), { okText: t('dr.arm'), danger: false }))) await run('arm', t('dr.arm'), () => call('arm', true));
+    } else if (op === 'takeoff') {
+      const plane = st.firmware === 'ardupilot' && st.vehicle === 'plane';
+      const saved = Number(settings0.flightTakeoffAlt);
+      const v = await numberForm({ title: t('fl.op.takeoff'), iconName: 'takeoff', label: plane ? '' : t('fl.op.takeoffAlt'), note: t(plane ? 'fl.op.takeoffPlane' : 'fl.op.takeoffNote'), value: saved >= 2 && saved <= 120 ? saved : 10, min: 2, max: 120, okText: t('fl.op.takeoff') });
+      if (v === null || v === undefined || v === false) return;
+      if (!plane) { settings0.flightTakeoffAlt = v; window.api.setSettings({ flightTakeoffAlt: v }); }
+      await run('takeoff', t('fl.op.takeoff'), () => call('takeoff', plane ? 0 : v));
+    } else if (op === 'land') await run('land', t('fl.op.land'), () => call('land'));
+    else if (op === 'rtl') await run('rtl', t('fl.op.rtl'), () => call('rtl'));
+    else if (op === 'hold') await run('hold', t('fl.op.hold'), () => call('hold'));
+    else if (op === 'goto') {
+      if (picking) { setPicking(false); return; }
+      if (!hasPos()) { toast(t('fl.op.needPos'), { type: 'err' }); return; }
+      if (st.vehicle !== 'rover' && (!st.armed || !(x.altRel > 1))) { toast(t('fl.op.needAir'), { type: 'err' }); return; }
+      setPicking(true);
+    } else if (op === 'alt') {
+      if (!hasPos()) { toast(t('fl.op.needPos'), { type: 'err' }); return; }
+      if (!st.armed || !(x.altRel > 1)) { toast(t('fl.op.needAir'), { type: 'err' }); return; }
+      const v = await numberForm({ title: t('fl.op.altTitle'), iconName: 'altitude', label: t('fl.op.altLabel'), value: Math.min(500, Math.max(2, Math.round(x.altRel))), min: 2, max: 500, okText: t('fl.op.apply') });
+      if (typeof v !== 'number') return;
+      await run('alt', `${t('fl.op.alt')}: ${v} m`, () => call('setAltitude', v));
+    } else if (op === 'kill') {
+      if (await inStage(confirmBox(t('fl.op.kill'), t('fl.op.killConfirm'), { okText: t('fl.op.kill') }))) await run('kill', t('fl.op.kill'), () => call('kill'));
+    }
+  });
+  let settings0 = {};
+
   // --- Başlangıç ---
   (async () => {
     const [store, f] = await Promise.all([window.api.getStore(), window.api.getFlight(FLIGHT_ID)]);
@@ -227,11 +410,13 @@
     flight = f;
     drone = f.droneId ? await window.api.getDrone(f.droneId) : null;
     const s = store.settings;
+    settings0 = { flightTakeoffAlt: s.flightTakeoffAlt };
     prefs = { layout: f.layout || 'mapPip', hud: s.flightHud !== false, follow: s.flightFollow !== false, style: s.flightStyle === 'street' ? 'street' : 'sat', terrain: s.flightTerrain !== false };
     hud = new FlightHud(el('#hud'));
     paintTools();
     setLayoutMode(prefs.layout, false);
     paintDrone();
+    paintOps();
     initMap();
     animate();
     new ResizeObserver(() => { if (map) map.resize(); }).observe(el('#mapPane'));
