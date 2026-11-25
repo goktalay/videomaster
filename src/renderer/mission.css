@@ -73,3 +73,18 @@
 
 /* ana penceredeki görev kartı */
 .mission-card .ms-art { width: 100%; height: 100%; color: #a78bfa; padding: 10px; }
+
+/* desen köşeleri, hesap satırı, çevrimdışı harita */
+.ms-mk.pvtx { width: 16px; height: 16px; background: #fff; border: 3px solid #f59e0b; border-radius: 4px; z-index: 4; }
+.ms-mk.pvtx.ctr { border-radius: 50%; }
+.ms-calc { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: var(--text-2); line-height: 1.5; }
+.ms-calc:empty { display: none; }
+.ms-calc svg { width: 16px; height: 16px; flex: none; margin-top: 2px; color: var(--accent); }
+.ms-warn.bad { color: #fecaca; background: color-mix(in srgb, #f43f5e 14%, transparent); border-color: color-mix(in srgb, #f43f5e 45%, transparent); }
+[data-theme="light"] .ms-warn.bad { color: #9f1239; }
+.ms-off-src { display: grid; gap: 8px; }
+.ms-off-src em { font-style: normal; color: var(--text-3); font-size: 12px; margin-inline-start: 6px; }
+.ms-off-src em.bad { color: var(--err); }
+.ms-off-bar { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.ms-off-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+.op-form .ms-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

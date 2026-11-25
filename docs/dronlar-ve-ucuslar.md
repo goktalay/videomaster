@@ -102,8 +102,9 @@ komutlarını verir; üst paneldeki ok bu çubuğu gizler. Paneller tam ekranda 
 
 Bilinmesi gerekenler:
 
-- Harita karoları internetten iner: uydu görüntüsü Esri World Imagery, sokak haritası OpenStreetMap.
-  Bu servislerin kendi kullanım koşulları vardır; çevrimdışıyken harita boş kalır ama dron ve izi çizilir.
+- Harita karoları internetten iner ve diske önbelleğe alınır: uydu görüntüsü Esri World Imagery, sokak haritası
+  OpenStreetMap. Bu servislerin kendi kullanım koşulları vardır. Çevrimdışıyken önbellekteki yerler açılır; önbellekte
+  olmayan yerlerde harita boş kalır ama dron ve izi çizilir.
 - Dronun haritadaki yüksekliği kalkış noktasına göredir. 3B görünüm eğik bakıştır; arazinin kabartması (dağ, vadi) çizilmez.
 - Kendi karo sunucunuzu (çevrimdışı ya da kurum içi harita) kullanmak için ayar dosyasına
   `"flightTiles": { "sat": "http://127.0.0.1:8080/sat/{z}/{x}/{y}.png", "street": "…" }` eklenebilir.
@@ -156,11 +157,31 @@ etkinleştirir ve AUTO / Mission kipine geçer), **duraklatma**, **sürdürme**,
 araçtaki görevi silme. Yüklü görev haritada kesikli çizgi ve numaralı noktalarla, sıradaki nokta vurgulu gösterilir; telemetri
 panelinde "sıradaki / toplam" görünür.
 
-### Görevlerde olmayanlar
+### Arazi, kamera, desenler ve çevrimdışı harita
 
-QGroundControl'deki şu özellikler bu sürümde yoktur: arazi yüksekliği verisi (yükseklik profili arazi çizmez, araziyi izleyen
-tarama yoktur), kamera modeline göre otomatik hat aralığı / örtüşme hesabı, yapı taraması (çok katmanlı), sabit kanat iniş deseni
-üreteci, tarama öğesini sonradan yeniden ayarlama (silip yeniden üretilir), çevrimdışı harita indirme.
+- **Arazi yüksekliği**: yükseklik profili yolun altındaki araziyi çizer (deniz seviyesine göre) ve en az açıklığı yazar; yol
+  araziye 10 m'den yakın geçiyorsa ya da kesişiyorsa panelde uyarı çıkar. **Noktaları araziye göre ayarla** bütün gezinme
+  noktalarını yerden verilen yükseklikte olacak biçimde değiştirir. Veri AWS Terrain Tiles'tan (yaklaşık 30 m çözünürlük) gelir;
+  bina ve ağaçları içermez, güvenlik payını buna göre bırakın.
+- **Araziyi izleyen tarama**: alan taraması ve koridorda "Araziyi izle" seçilirse hatlar boyunca ara noktalar eklenir ve her
+  noktanın irtifası yerden sabit yükseklikte kalacak biçimde hesaplanır.
+- **Kameraya göre hat aralığı**: taramada "Kameraya göre" seçilince kamera (ya da özel algılayıcı / odak değerleri), yan ve ön
+  örtüşme girilir; hat aralığı, fotoğraf aralığı, yer çözünürlüğü (cm/piksel) ve kare boyutu hesaplanır. Hazır kamera
+  değerleri üretici verilerinden alınmıştır; kendi kameranız için değerleri doğrulayın.
+- **Yapı taraması**: bir merkezin çevresinde alt ve üst yükseklik arasında katman katman turlar; isteğe bağlı merkeze bakış.
+- **İniş deseni** (araç türü uçakken): iniş noktası, iniş yönü, yaklaşma mesafesi ve irtifası → iniş başlangıcı, irtifaya
+  kadar tur ve iniş öğeleri; süzülüş açısı gösterilir.
+- **Desenleri sonradan düzenleme**: tarama, koridor, çevre turu, yapı taraması ve iniş deseni tanımlarıyla saklanır. Desenin
+  bir noktası seçilince **Deseni düzenle** aynı pencereyi açar; desenin köşeleri ya da merkezi haritada sürüklenince noktalar
+  yeniden üretilir.
+- **Çevrimdışı harita** (harita araçlarındaki indirme düğmesi): görünen bölgenin uydu, sokak ve yükseklik karolarını seçilen
+  yakınlaştırmaya kadar indirir. Ayrıca bir kez görüntülenen her yer kendiliğinden diske kaydedilir ve internet yokken oradan
+  açılır (uçuş penceresi dahil). Hazır uydu (Esri) ve sokak (OpenStreetMap) haritalarının kullanım koşulları toplu indirmeyi
+  kısıtladığı için bu kaynaklarda tek seferde en çok 250 karo indirilir; kendi karo sunucunuzda (`flightTiles` ayarı; `sat`,
+  `street`, `dem`) ve yükseklik karolarında bu sınır yoktur.
+
+Sınırlar: arazi verisi yapıları ve bitki örtüsünü içermez; yapı taraması dairesel turlardır (çokgen cepheli tarama yoktur);
+kamera hesabı yatay çekimi ve düz araziyi varsayar.
 
 ## Uçuş kayıtları ve oynatma
 

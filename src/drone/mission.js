@@ -77,7 +77,7 @@
       const v = src.p ? src.p[key] : undefined;
       it.p[key] = v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? dv : clamp(Number(v), lo, hi);
     }
-    if (src.group) it.group = String(src.group).slice(0, 24); // üreteçle (tarama vb.) oluşturulan öğeler
+    if (src.group) it.group = String(src.group).slice(0, 24); // üreteçle (tarama vb.) oluşturulan öğeler → patterns[group]
     return it;
   }
 
@@ -100,9 +100,23 @@
       },
       rally: (Array.isArray(src.rally) ? src.rally : []).slice(0, 50).map((q) => ({ lat: num(q.lat, NaN), lon: num(q.lon, NaN), alt: num(q.alt, defaults.alt) })).filter((q) => okLat(q.lat) && okLon(q.lon)),
       notes: String(src.notes || '').slice(0, 4000),
+      patterns: normalizePatterns(src.patterns, src.items),
     };
   }
-  const KEYS = ['name', 'vehicle', 'home', 'defaults', 'items', 'fence', 'rally', 'notes', 'createdAt'];
+  // Üreteç tanımları (yeniden düzenleme için saklanır): { grupId: { kind, args } }. Öğesi kalmayan grupların tanımı atılır.
+  function normalizePatterns(src, items) {
+    const out = {};
+    const used = new Set((Array.isArray(items) ? items : []).map((it) => it && it.group).filter(Boolean).map((g) => String(g).slice(0, 24)));
+    for (const [id, p] of Object.entries(src && typeof src === 'object' ? src : {})) {
+      if (!used.has(id) || !p || !PATTERN_KINDS.includes(p.kind) || !p.args || typeof p.args !== 'object') continue;
+      let json; try { json = JSON.stringify(p.args); } catch { continue; }
+      if (json.length > 20000) continue;
+      out[id] = { kind: p.kind, args: JSON.parse(json) };
+    }
+    return out;
+  }
+  const PATTERN_KINDS = ['survey', 'corridor', 'orbit', 'structure', 'landing'];
+  const KEYS = ['name', 'vehicle', 'home', 'defaults', 'items', 'fence', 'rally', 'notes', 'patterns', 'createdAt'];
 
   // Uyarılar: [{ code, index? }]
   function validate(m) {
@@ -360,6 +374,72 @@
     return out;
   }
 
+  // Yapı taraması: merkez çevresinde, `bottom`…`top` arasında `layers` katmanlı turlar (her katman bir daire)
+  //   → [[lat, lon, alt]…]; katmanlar alttan üste, turlar arasında en yakın noktadan geçilir
+  function structure({ lat, lon, radius = 30, bottom = 10, top = 40, layers = 3, points = 12, clockwise = true }) {
+    const n = clamp(Math.round(layers), 1, 50);
+    const out = [];
+    for (let k = 0; k < n; k++) {
+      const alt = n === 1 ? (bottom + top) / 2 : bottom + ((top - bottom) / (n - 1)) * k;
+      for (const q of orbit({ lat, lon, radius, points, clockwise })) out.push([q[0], q[1], Math.round(alt * 10) / 10]);
+    }
+    return out;
+  }
+
+  // Sabit kanat iniş deseni: yaklaşma noktası (iniş noktasının `heading` yönünün tersinde, `distance` m geride, `alt` m'de
+  // tur atarak alçalma) → son yaklaşma → iniş. glide: süzülüş açısı (°)
+  function landingPattern({ lat, lon, heading = 0, distance = 300, alt = 40, radius = 60 }) {
+    const back = (heading + 180) * RAD;
+    const ap = toLL(Math.sin(back) * distance, Math.cos(back) * distance, [lat, lon]);
+    return { approach: { lat: ap[0], lon: ap[1], alt, radius }, land: { lat, lon }, glide: Math.atan2(alt, Math.max(1, distance)) / RAD };
+  }
+
+  // Kamera tabloları (algılayıcı mm, odak mm, görüntü piksel). Değerler üretici verilerinden; "Özel" ile elle girilebilir.
+  const CAMERAS = [
+    { id: 'custom', name: 'Özel / Custom', sensorW: 13.2, sensorH: 8.8, focal: 8.8, imageW: 5472, imageH: 3648 },
+    { id: 'p4p', name: 'DJI Phantom 4 Pro (1", 8.8 mm)', sensorW: 13.2, sensorH: 8.8, focal: 8.8, imageW: 5472, imageH: 3648 },
+    { id: 'mavic3e', name: 'DJI Mavic 3E (4/3, 12.3 mm)', sensorW: 17.3, sensorH: 13, focal: 12.29, imageW: 5280, imageH: 3956 },
+    { id: 'a6000-16', name: 'Sony a6000 + 16 mm', sensorW: 23.5, sensorH: 15.6, focal: 16, imageW: 6000, imageH: 4000 },
+    { id: 'a6000-20', name: 'Sony a6000 + 20 mm', sensorW: 23.5, sensorH: 15.6, focal: 20, imageW: 6000, imageH: 4000 },
+    { id: 'rx1r2', name: 'Sony RX1R II (35 mm)', sensorW: 35.9, sensorH: 24, focal: 35, imageW: 7952, imageH: 5304 },
+    { id: 'a7r4-35', name: 'Sony a7R IV + 35 mm', sensorW: 35.7, sensorH: 23.8, focal: 35, imageW: 9504, imageH: 6336 },
+  ];
+  // Kameraya göre hat aralığı ve fotoğraf aralığı. Geniş kenar uçuş yönüne dik (yatay çekim).
+  //   → { footW, footH (yerdeki görüş alanı, m), spacing (hat aralığı), trigger (fotoğraf aralığı), gsd (cm/piksel) }
+  function cameraCalc({ sensorW, sensorH, focal, imageW }, alt, sidePct = 70, frontPct = 80) {
+    const footW = (alt * sensorW) / focal; const footH = (alt * sensorH) / focal;
+    return { footW, footH, spacing: Math.max(0.5, footW * (1 - clamp(sidePct, 0, 95) / 100)), trigger: Math.max(0.5, footH * (1 - clamp(frontPct, 0, 95) / 100)), gsd: (footW / imageW) * 100 };
+  }
+
+  // Yol boyunca en çok `step` metrede bir ara nokta ekler (araziyi izleme için)
+  function densify(points, step = 50) {
+    const out = [];
+    points.forEach((q, i) => {
+      if (i) {
+        const a = points[i - 1];
+        const d = distance(a[0], a[1], q[0], q[1]);
+        const n = Math.min(200, Math.floor(d / Math.max(5, step)));
+        for (let k = 1; k <= n; k++) { const f = k / (n + 1); out.push([r7(a[0] + (q[0] - a[0]) * f), r7(a[1] + (q[1] - a[1]) * f), true]); }
+      }
+      out.push([q[0], q[1], false]);
+    });
+    return out; // [lat, lon, ara nokta mı]
+  }
+  // İrtifası doğrusal aradeğerden `tol` metreden az sapan ara noktaları atar: [{ lat, lon, alt, mid }] → azaltılmış liste
+  function thin(list, tol = 2) {
+    const out = [];
+    let anchor = 0;
+    for (let i = 0; i < list.length; i++) {
+      if (!list[i].mid || i === 0 || i === list.length - 1) { out.push(list[i]); anchor = i; continue; }
+      let end = i + 1;
+      while (end < list.length - 1 && list[end].mid) end++;
+      const a = list[anchor]; const b = list[end];
+      const f = (i - anchor) / (end - anchor);
+      if (Math.abs(list[i].alt - (a.alt + (b.alt - a.alt) * f)) > tol) { out.push(list[i]); anchor = i; }
+    }
+    return out;
+  }
+
   // Nokta çokgenin içinde mi (coğrafi çit denetimi için)
   function inside(lat, lon, points) {
     let c = false;
@@ -370,7 +450,7 @@
     return c;
   }
 
-  const api = { TYPES, CMD_TYPE, AVAILABLE, VEHICLES, KEYS, FRAME, newItem, normalizeItem, normalize, validate, distance, bearing, path, stats, toMav, fromMav, itemToMav, itemFromMav, toPlan, fromPlan, toWpl, fromWpl, survey, corridor, orbit, inside };
+  const api = { TYPES, CMD_TYPE, AVAILABLE, VEHICLES, KEYS, FRAME, newItem, normalizeItem, normalize, validate, distance, bearing, path, stats, toMav, fromMav, itemToMav, itemFromMav, toPlan, fromPlan, toWpl, fromWpl, survey, corridor, orbit, structure, landingPattern, CAMERAS, cameraCalc, densify, thin, PATTERN_KINDS, inside };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MISSION = api;
 })(typeof self !== 'undefined' ? self : this);
