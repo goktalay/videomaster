@@ -80,15 +80,13 @@ başlatılana kadar motorların etkinleşmesine izin vermez.
 
 **Yeni uçuş** kayıtlı bir dron ve (isteğe bağlı) kayıtlı bir kamera seçtirir. Uçuş penceresinde:
 
-- **3B harita**: dronun konumu ve yönü, uçulan yüksekliğe kadar yükselen iz, kalkış noktası. Uydu görüntüsü / sokak haritası,
-  3B eğik bakış ya da üstten bakış, dronu izleme, kalkış noktasına gitme, izi temizleme.
-- **3B küre (Cesium)**: harita araçlarındaki küre düğmesi CesiumJS ile gerçek arazi kabartmalı görünümü açar: dron, uçulan
-  yol (irtifasıyla), yere izdüşüm çizgisi, kalkış noktası, hedef ve görev yolu kürenin üstünde gösterilir; noktaya git ve izleme
-  çalışır. Arazi verisi Cesium ion'dan gelir ve bir **erişim anahtarı** ister; anahtar ilk açılışta sorulur ve yalnızca bu
-  bilgisayardaki ayarlarda saklanır (hesapla eşitlenmez). Anahtarsız açılırsa küre düz araziyle gösterilir. Uydu ve sokak
-  görüntüsü uygulamanın kendi karo önbelleğinden gelir. Cesium ion'un kendi kullanım koşulları ve kotası vardır.
-- **2B harita**: 3B harita (WebGL) bilgisayarda açılamazsa uygulama kendiliğinden sade 2B haritaya geçer; harita araçlarındaki
-  düğmeyle elle de geçilebilir. 2B haritada da her şey çalışır: karolar, dron ve yönü, iz, kalkış noktası, hedef, noktaya git.
+- **Harita (Cesium küresi)**: dron 3B modeliyle (kopter, uçak, helikopter… araç türüne göre), uçulan yol irtifasıyla, yere
+  izdüşüm çizgisi, kalkış noktası, hedef ve görev yolu gerçek arazi kabartmalı kürenin üstünde gösterilir. Fareyle döndürülür,
+  eğilir, yakınlaştırılır; "dronu izle" açıkken kamera seçtiğiniz bakış açısını koruyarak aracı izler.
+- **Harita ayarları** (harita araçlarındaki katman düğmesi; bütün haritalarda ortaktır): harita kaynağı, arazi kabartması,
+  sahne ayarları ve çevrimdışı harita. Ayrıntılar aşağıda, "Harita altyapısı" başlığında.
+- **2B yedek harita**: Cesium (WebGL) bilgisayarda açılamazsa uygulama kendiliğinden sade 2B haritaya geçer; karolar, dron ve
+  yönü, iz, kalkış noktası, hedef ve noktaya git orada da çalışır.
 - **Yerleşimler**: harita + küçük kamera, kamera + küçük harita, yan yana, yalnız harita, yalnız kamera. Küçük pencereye tıklamak
   büyüğüyle yer değiştirir. Kamera ve harita ayrı ayrı tam ekran açılabilir (HUD ile birlikte).
 - **HUD**: yapay ufuk ve yunuslama merdiveni, yatış ölçeği, hız ve yükseklik şeritleri, tırmanma göstergesi, yön şeridi; altta uçuş
@@ -128,12 +126,32 @@ komutlarını verir; üst paneldeki ok bu çubuğu gizler. Paneller tam ekranda 
 
 Bilinmesi gerekenler:
 
-- Harita karoları internetten iner ve diske önbelleğe alınır: uydu görüntüsü Esri World Imagery, sokak haritası
-  OpenStreetMap. Bu servislerin kendi kullanım koşulları vardır. Çevrimdışıyken önbellekteki yerler açılır; önbellekte
-  olmayan yerlerde harita boş kalır ama dron ve izi çizilir.
-- Dronun haritadaki yüksekliği kalkış noktasına göredir. 3B görünüm eğik bakıştır; arazinin kabartması (dağ, vadi) çizilmez.
-- Kendi karo sunucunuzu (çevrimdışı ya da kurum içi harita) kullanmak için ayar dosyasına
-  `"flightTiles": { "sat": "http://127.0.0.1:8080/sat/{z}/{x}/{y}.png", "street": "…" }` eklenebilir.
+- Çevrimdışıyken önbellekteki yerler açılır; önbellekte olmayan yerlerde harita boş kalır ama dron ve izi çizilir.
+- Dronun haritadaki yüksekliği kalkış noktasına göredir: kalkış noktasının arazi yüksekliği örneklenir ve uçuş irtifası
+  onun üstüne eklenir.
+
+## Harita altyapısı
+
+Uçuş penceresi ve görev düzenleyici aynı harita altyapısını kullanır (Göktungu yer istasyonundakiyle aynı düzen):
+
+- **Motor**: CesiumJS küresi. Görev düzenleyici üstten bakışla açılır ve çizimler araziye oturtulur.
+- **Harita kaynakları** (12): ESRI Uydu / Sokak / Topografik, Google Uydu / Hibrit / Yol / Arazi, Bing Uydu, OpenStreetMap,
+  OpenTopoMap, CartoDB Açık / Koyu.
+- **Karo önbelleği**: bütün karolar uygulamanın kendi önbelleğinden geçer. Bir kez görüntülenen her yer diske yazılır
+  (veri klasöründe `tiles/<kaynak>/<z>/<x>/<y>.tile`) ve internet yokken oradan açılır; ayrı bir "çevrimdışı kip" yoktur.
+- **Görünen bölgeyi indir**: haritada görünen bölge, seçilen yakınlaştırma aralığında önceden indirilir. Önce karo sayısı,
+  tahmini süre ve boyut gösterilir; ilerleme, hız ve kalan süre izlenir; indirme durdurulabilir. Tek indirmede en çok 250.000
+  karo. Önbellekteki karolar yeniden indirilmez. Kaynak başına karo sayısı, boyut, yakınlaştırma aralığı ve son indirme
+  tarihi listelenir; kaynak kaynak ya da tümüyle silinebilir.
+- **Arazi kabartması**: Kapalı, **ArcGIS World Elevation** (anahtarsız; varsayılan) ya da **Cesium World Terrain** (Cesium ion
+  erişim anahtarı ister). Anahtar harita ayarlarından girilir, yalnızca bu bilgisayardaki ayarlarda saklanır ve hesapla
+  eşitlenmez. Arazi verisi alınamazsa küre düz gösterilir. Arazi kabartması çevrimdışı saklanmaz.
+- **Sahne**: arazi abartması, atmosfer, sis, güneş aydınlatması, kenar yumuşatma, çözünürlük ölçeği.
+- **Özel karo sunucusu**: ayar dosyasında `"flightTiles": { "esri": "http://sunucu/{z}/{x}/{y}.png", … }` ile bir kaynağın
+  adresi değiştirilebilir (`sat` ve `street` adları ESRI Uydu ve OpenStreetMap için de geçerlidir; `dem` yükseklik karolarıdır).
+
+Harita sağlayıcılarının (Esri, Google, Microsoft, OpenStreetMap…) kendi kullanım koşulları vardır; bunlar özellikle toplu
+indirmeyi ve çevrimdışı saklamayı kısıtlayabilir. Uygun kullanım kullanıcının sorumluluğundadır.
 
 ## Görevler
 
@@ -200,11 +218,8 @@ panelinde "sıradaki / toplam" görünür.
 - **Desenleri sonradan düzenleme**: tarama, koridor, çevre turu, yapı taraması ve iniş deseni tanımlarıyla saklanır. Desenin
   bir noktası seçilince **Deseni düzenle** aynı pencereyi açar; desenin köşeleri ya da merkezi haritada sürüklenince noktalar
   yeniden üretilir.
-- **Çevrimdışı harita** (harita araçlarındaki indirme düğmesi): görünen bölgenin uydu, sokak ve yükseklik karolarını seçilen
-  yakınlaştırmaya kadar indirir. Ayrıca bir kez görüntülenen her yer kendiliğinden diske kaydedilir ve internet yokken oradan
-  açılır (uçuş penceresi dahil). Hazır uydu (Esri) ve sokak (OpenStreetMap) haritalarının kullanım koşulları toplu indirmeyi
-  kısıtladığı için bu kaynaklarda tek seferde en çok 250 karo indirilir; kendi karo sunucunuzda (`flightTiles` ayarı; `sat`,
-  `street`, `dem`) ve yükseklik karolarında bu sınır yoktur.
+- **Çevrimdışı harita**: harita araçlarındaki katman düğmesiyle açılan ortak harita ayarlarından yapılır (bkz. "Harita
+  altyapısı"). Yükseklik profili ve araziyi izleme için kullanılan yükseklik karoları da görüntülendikçe önbelleğe alınır.
 
 Sınırlar: arazi verisi yapıları ve bitki örtüsünü içermez; yapı taraması dairesel turlardır (çokgen cepheli tarama yoktur);
 kamera hesabı yatay çekimi ve düz araziyi varsayar.
