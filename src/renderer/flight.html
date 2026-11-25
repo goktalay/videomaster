@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: vdm: https:; connect-src 'self' https: data: blob:">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; child-src blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: vdm: https: http://127.0.0.1:* http://localhost:*; connect-src 'self' https: http://127.0.0.1:* http://localhost:* data: blob:">
   <title>Video Master</title>
   <link rel="stylesheet" href="../vendor/maplibre/maplibre-gl.css">
   <link rel="stylesheet" href="common.css">
@@ -42,7 +42,6 @@
     <div class="vw-main">
       <div class="vw-left">
         <div class="fl-wrap" id="wrap">
-        <div class="fl-ops" id="ops"></div>
         <div class="fl-stage" id="stage" data-layout="mapPip">
           <div class="fl-pane fl-map" id="mapPane">
             <div id="map"></div>
@@ -58,6 +57,10 @@
           </section>
           <button class="fl-swap icon-btn" id="btnSwap"></button>
           <canvas id="hud"></canvas>
+          <div class="fl-deck" id="deck">
+            <div class="fl-tm" id="tm"></div>
+            <div class="fl-ops" id="ops"></div>
+          </div>
         </div>
         </div>
         <div class="split-h" id="splitBottom"></div>
@@ -111,6 +114,7 @@
   <script src="campanel.js"></script>
   <script src="vision.js"></script>
   <script src="dronekit.js"></script>
+  <script src="map2d.js"></script>
   <script src="hud.js"></script>
   <script src="flightpre.js"></script>
   <script src="viewer.js"></script>

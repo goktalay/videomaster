@@ -12,13 +12,13 @@
   const TILES = {
     sat: { tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], attribution: 'Esri, Maxar, Earthstar Geographics', maxzoom: 19 },
     street: { tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], attribution: '© OpenStreetMap', maxzoom: 19 },
-    dem: 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png',
   };
 
   let flight = null;
   let drone = null;
   let st = { connected: false, linked: false, telemetry: {} };
-  let prefs = { layout: 'mapPip', hud: true, follow: true, style: 'sat', terrain: true };
+  let prefs = { layout: 'mapPip', hud: true, follow: true, style: 'sat', tilt: true, flat: false };
+  let flatMode = false;      // sade 2B harita kullanılıyor (seçildi ya da 3B açılamadı)
   let map = null;
   let mapReady = false;
   let marker = null;
@@ -79,7 +79,7 @@
     if (hud) hud.visible = prefs.hud;
     const b = (id, ic, title, on) => `<button class="icon-btn ${on ? 'active' : ''}" data-t="${id}" title="${esc(title)}">${icon(ic)}</button>`;
     el('#mapTools').innerHTML = b('follow', 'crosshair', t('fl.follow'), prefs.follow) + b('style', 'layers', t(prefs.style === 'sat' ? 'fl.street' : 'fl.sat'), false)
-      + b('terrain', 'chart', t('fl.terrain'), prefs.terrain) + b('home', 'home', t('fl.goHome'), false) + b('clear', 'broom', t('fl.clearTrack'), false) + b('zin', 'plus', '+', false) + b('zout', 'minus', '−', false) + b('full', 'expand', t('fl.mapFull'), false);
+      + (flatMode ? '' : b('tilt', 'chart', t('fl.tilt'), prefs.tilt)) + b('flat', 'image', t(flatMode ? 'fl.use3d' : 'fl.use2d'), flatMode) + b('home', 'home', t('fl.goHome'), false) + b('clear', 'broom', t('fl.clearTrack'), false) + b('zin', 'plus', '+', false) + b('zout', 'minus', '−', false) + b('full', 'expand', t('fl.mapFull'), false);
   }
   el('#mapTools').onclick = (e) => {
     const b = e.target.closest('[data-t]');
@@ -87,13 +87,14 @@
     const a = b.dataset.t;
     if (a === 'follow') { prefs.follow = !prefs.follow; if (prefs.follow && shown) map.easeTo({ center: [shown[0], shown[1]], duration: 400 }); }
     else if (a === 'style') { prefs.style = prefs.style === 'sat' ? 'street' : 'sat'; applyStyle(); }
-    else if (a === 'terrain') { prefs.terrain = !prefs.terrain; applyTerrain(); }
+    else if (a === 'tilt') { prefs.tilt = !prefs.tilt; applyTilt(); }
+    else if (a === 'flat') { prefs.flat = !flatMode; window.api.setSettings({ flightFlat: prefs.flat }); initMap(); return; }
     else if (a === 'home') { const x = st.telemetry || {}; if (x.homeLat || x.homeLon) map.easeTo({ center: [x.homeLon, x.homeLat], duration: 600 }); }
     else if (a === 'clear') { track.length = 0; paintTrack(true); }
     else if (a === 'zin') map.zoomIn();
     else if (a === 'zout') map.zoomOut();
     else if (a === 'full') fullscreen('map');
-    window.api.setSettings({ flightFollow: prefs.follow, flightStyle: prefs.style, flightTerrain: prefs.terrain });
+    window.api.setSettings({ flightFollow: prefs.follow, flightStyle: prefs.style, flightTilt: prefs.tilt });
     paintTools();
   };
 
@@ -102,30 +103,53 @@
     map.setLayoutProperty('sat', 'visibility', prefs.style === 'sat' ? 'visible' : 'none');
     map.setLayoutProperty('street', 'visibility', prefs.style === 'street' ? 'visible' : 'none');
   }
-  function applyTerrain() {
-    if (!mapReady) return;
-    try { map.setTerrain(prefs.terrain ? { source: 'dem', exaggeration: 1 } : null); } catch { /* yükseklik verisi yok */ }
-    map.easeTo({ pitch: prefs.terrain ? 62 : 0, duration: 500 });
+  // 3B görünüm = eğik bakış (iz ve dron yükseklikleriyle). Arazi yükseklik verisi kullanılmaz: yüksek rakımlı yerlerde
+  // kamera zeminin altında kalıp haritayı boş gösteriyordu.
+  function applyTilt() {
+    if (!mapReady || flatMode) return;
+    map.easeTo({ pitch: prefs.tilt ? 60 : 0, duration: 500 });
   }
 
+  function note(text) { el('#mapNote').textContent = text || ''; el('#mapNote').classList.toggle('hidden', !text); }
+
+  // 3B harita (MapLibre, WebGL) açılamazsa sade 2B haritaya düşülür; kullanıcı araç çubuğundan da 2B'yi seçebilir.
   function initMap() {
-    if (!window.maplibregl) { el('#mapNote').textContent = t('fl.mapMissing'); el('#mapNote').classList.remove('hidden'); return; }
-    maplibregl.setWorkerUrl('../vendor/maplibre/maplibre-gl-csp-worker.js');
-    const raster = (s) => ({ type: 'raster', tiles: s.tiles, tileSize: 256, maxzoom: s.maxzoom, attribution: s.attribution });
-    map = new maplibregl.Map({
-      container: 'map', attributionControl: { compact: true }, maxPitch: 80,
-      center: [32.8663, 39.9255], zoom: 4, pitch: prefs.terrain ? 62 : 0,
-      style: {
-        version: 8,
-        sources: { sat: raster(TILES.sat), street: raster(TILES.street), dem: { type: 'raster-dem', tiles: [TILES.dem], tileSize: 256, maxzoom: 15, encoding: 'terrarium' } },
-        layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#0b1220' } },
-          { id: 'sat', type: 'raster', source: 'sat', layout: { visibility: prefs.style === 'sat' ? 'visible' : 'none' } },
-          { id: 'street', type: 'raster', source: 'street', layout: { visibility: prefs.style === 'street' ? 'visible' : 'none' } }],
-        sky: { 'sky-color': '#7fb4e6', 'horizon-color': '#cfe4f5', 'fog-color': '#cfe4f5', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.2 },
-      },
-    });
+    if (map) { try { if (marker) marker.remove(); map.remove(); } catch { /* yok */ } }
+    map = null; mapReady = false; marker = null; shown = null;
+    note('');
+    const center = (() => { const x = st.telemetry || {}; return Number.isFinite(x.lat) && (x.lat || x.lon) ? [x.lon, x.lat] : [32.8663, 39.9255]; })();
+    flatMode = !!prefs.flat;
+    if (!flatMode) {
+      try {
+        if (!window.maplibregl) throw new Error('maplibre');
+        maplibregl.setWorkerUrl('../vendor/maplibre/maplibre-gl-csp-worker.js');
+        const raster = (s) => ({ type: 'raster', tiles: s.tiles, tileSize: 256, maxzoom: s.maxzoom, attribution: s.attribution });
+        map = new maplibregl.Map({
+          container: 'map', attributionControl: { compact: true }, maxPitch: 80,
+          center, zoom: 4, pitch: prefs.tilt ? 60 : 0,
+          style: {
+            version: 8,
+            sources: { sat: raster(TILES.sat), street: raster(TILES.street) },
+            layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#0b1220' } },
+              { id: 'sat', type: 'raster', source: 'sat', layout: { visibility: prefs.style === 'sat' ? 'visible' : 'none' } },
+              { id: 'street', type: 'raster', source: 'street', layout: { visibility: prefs.style === 'street' ? 'visible' : 'none' } }],
+            sky: { 'sky-color': '#7fb4e6', 'horizon-color': '#cfe4f5', 'fog-color': '#cfe4f5', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.2 },
+          },
+        });
+        // Ekran kartı bağlamı yitirilirse 2B haritaya geçilir
+        map.getCanvas().addEventListener('webglcontextlost', () => { if (!flatMode) { prefs.flat = true; initMap(); toast(t('fl.fallback2d'), { timeout: 6000 }); } });
+      } catch (e) {
+        console.warn('3B harita açılamadı, 2B haritaya geçiliyor:', e && e.message);
+        try { if (map) map.remove(); } catch { /* yok */ }
+        map = null; flatMode = true;
+        el('#map').innerHTML = '';
+        toast(t('fl.fallback2d'), { timeout: 6000 });
+      }
+    }
+    if (flatMode) map = new FlatMap({ container: 'map', center, zoom: 4, sources: { sat: TILES.sat, street: TILES.street }, visible: prefs.style });
+    paintTools();
     let tileErrors = 0;
-    map.on('error', () => { if (++tileErrors === 6) { el('#mapNote').textContent = t('fl.mapOffline'); el('#mapNote').classList.remove('hidden'); } });
+    map.on('error', () => { if (++tileErrors === 6) note(t('fl.mapOffline')); });
     map.on('click', (e) => { if (picking) { setPicking(false); goTo(e.lngLat.lat, e.lngLat.lng, false); } });
     map.on('contextmenu', (e) => { if (prefs.layout !== 'videoPip') goTo(e.lngLat.lat, e.lngLat.lng, true); });
     map.on('dragstart', () => { if (prefs.follow) { prefs.follow = false; paintTools(); } });
@@ -148,8 +172,8 @@
       const m = document.createElement('div');
       m.className = 'fl-marker';
       m.innerHTML = '<svg viewBox="0 0 48 48"><path d="M24 4 L34 40 L24 33 L14 40 Z" fill="#f43f5e" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/></svg>';
-      marker = new maplibregl.Marker({ element: m, rotationAlignment: 'map', pitchAlignment: 'map' });
-      applyTerrain();
+      marker = flatMode ? new FlatMarker({ element: m }) : new maplibregl.Marker({ element: m, rotationAlignment: 'map', pitchAlignment: 'map' });
+      paintTarget();
       paintTrack(true);
     });
   }
@@ -185,6 +209,12 @@
     if (!shown) { shown = target.slice(); marker.setLngLat([shown[0], shown[1]]).addTo(map); map.jumpTo({ center: [shown[0], shown[1]], zoom: 16.5 }); }
     for (let i = 0; i < 3; i++) shown[i] += (target[i] - shown[i]) * 0.18;
     marker.setLngLat([shown[0], shown[1]]);
+    // İzleme: kamera her karede yumuşatılmış konuma alınır. (Sürekli easeTo kullanılmaz: MapLibre geçiş sürerken arazi
+    // yüksekliğini dondurur; yüksek rakımda kamera zeminin altında kalıp harita boş görünürdü.)
+    if (prefs.follow && !map.isEasing() && !map.dragPan.isActive()) {
+      const c = map.getCenter();
+      if (Math.abs(c.lng - shown[0]) > 1e-7 || Math.abs(c.lat - shown[1]) > 1e-7) map.jumpTo({ center: [shown[0], shown[1]] });
+    }
     marker.setRotation(Number.isFinite(x.heading) ? x.heading : 0);
     const alt = Math.max(0, shown[2]);
     map.getSource('craft').setData({ type: 'Feature', properties: { base: Math.max(0, alt - 1.2), top: alt + 1.2 }, geometry: { type: 'Polygon', coordinates: square(shown[0], shown[1], 2.2) } });
@@ -202,7 +232,6 @@
     }
     paintTarget();
     if (mapReady && (x.homeLat || x.homeLon)) map.getSource('home').setData({ type: 'Feature', geometry: { type: 'Point', coordinates: [x.homeLon, x.homeLat] } });
-    if (mapReady && prefs.follow && shown && !map.isMoving()) map.easeTo({ center: [x.lon, x.lat], duration: 450, easing: (n) => n });
   }
 
   // --- Dron durumu ---
@@ -274,13 +303,61 @@
       <span class="sep"></span><select class="input" id="opMode" title="${esc(t('fl.op.mode'))}"></select>
       <span class="sep"></span>${b('goto', 'pin', t('fl.op.goto'))}${b('alt', 'altitude', t('fl.op.alt'))}
       <span class="op-target hidden" id="opTarget"><span></span><button type="button" data-op="clearTarget" title="${esc(t('fl.op.clearTarget'))}">${icon('x')}</button></span>
-      <span class="op-note hidden" id="opNote"></span><span style="flex:1"></span>${b('kill', 'alert', t('fl.op.kill'), 'kill')}`;
+      <span class="op-note hidden" id="opNote"></span><span class="sep"></span>${b('kill', 'alert', t('fl.op.kill'), 'kill')}`;
     el('#pickHint').textContent = t('fl.op.pickHint');
+  }
+
+  // Telemetri kutuları: kip + motor durumu, irtifa, hız, tırmanma, yön, eve uzaklık, batarya, GPS, uçuş süresi
+  let armedAt = 0;
+  let flownMs = 0;
+  function buildTm() {
+    const box = (id, label, unit = '', extra = '') => `<div class="tm" data-tm="${id}"><label>${esc(label)}</label><div><b>—</b>${unit ? `<small>${esc(unit)}</small>` : '<small></small>'}</div>${extra}</div>`;
+    el('#tm').innerHTML = `<div class="tm-mode off" id="tmMode"><b>—</b><span><i></i><em style="font-style:normal"></em></span></div>
+      ${box('alt', t('tm.altRel'), 'm')}${box('spd', t('fl.tm.speed'), 'm/s')}${box('climb', t('tm.climb'), 'm/s')}${box('hdg', t('tm.heading'), '°')}${box('home', t('fl.tm.home'), 'm')}
+      ${box('batt', t('fl.tm.batt'), 'V', '<span class="bar"><i></i></span>')}${box('gps', 'GPS')}${box('time', t('fl.tm.time'))}
+      <button type="button" class="tm-fold" id="tmFold" title="${esc(t('fl.tm.fold'))}">${icon('chevronDown')}</button>`;
+    el('#tmFold').onclick = () => { const f = !el('#deck').classList.contains('folded'); el('#deck').classList.toggle('folded', f); window.api.setSettings({ flightOpsFolded: f }); };
+    new ResizeObserver(() => { el('#stage').style.setProperty('--deck-h', `${el('#deck').offsetHeight}px`); if (map) map.resize(); }).observe(el('#deck'));
+    setInterval(paintTm, 1000);
+  }
+  function paintTm() {
+    if (!el('#tm').firstChild) return;
+    const x = st.telemetry || {};
+    const live = !!st.linked;
+    const set = (id, value, cls = '', unit) => {
+      const b = el(`#tm [data-tm="${id}"]`);
+      b.className = `tm ${cls}`;
+      b.querySelector('b').textContent = value;
+      if (unit !== undefined) b.querySelector('small').textContent = unit;
+      return b;
+    };
+    const n = (v, d = 1) => (live && Number.isFinite(v) ? v.toFixed(d) : '—');
+    const mode = el('#tmMode');
+    mode.className = `tm-mode ${!live ? 'off' : st.armed ? 'armed' : ''}`;
+    mode.querySelector('b').textContent = live ? (st.mode || '—') : t('dr.st.off');
+    mode.querySelector('em').textContent = live ? t(st.armed ? 'dr.armed' : 'dr.disarmed') : (drone ? drone.name : '');
+    set('alt', n(x.altRel));
+    set('spd', n(x.groundspeed));
+    set('climb', live && Number.isFinite(x.climb) ? `${x.climb > 0.05 ? '+' : ''}${x.climb.toFixed(1)}` : '—');
+    set('hdg', live && Number.isFinite(x.heading) ? String(Math.round(x.heading)).padStart(3, '0') : '—');
+    const d = live && (x.homeLat || x.homeLon) && hasPos() ? FlightHud.distance(x.lat, x.lon, x.homeLat, x.homeLon) : NaN;
+    set('home', Number.isFinite(d) ? (d >= 1000 ? (d / 1000).toFixed(2) : String(Math.round(d))) : '—', '', Number.isFinite(d) && d >= 1000 ? 'km' : 'm');
+    const pct = live && Number.isFinite(x.batteryPct) && x.batteryPct >= 0 ? x.batteryPct : NaN;
+    const batt = set('batt', live && x.voltage ? x.voltage.toFixed(1) : '—', pct < 20 ? 'bad' : pct < 35 ? 'warn' : '', Number.isFinite(pct) ? `V · ${Math.round(pct)}%` : 'V');
+    batt.querySelector('.bar i').style.width = `${Number.isFinite(pct) ? Math.min(100, pct) : 0}%`;
+    const fix = Number(x.gpsFix) || 0;
+    set('gps', live && Number.isFinite(x.sats) ? String(x.sats) : '—', !live ? '' : fix >= 3 ? 'good' : fix >= 2 ? 'warn' : 'bad', live ? (fix >= 3 ? '3D' : fix === 2 ? '2D' : t('fl.tm.noFix')) : '');
+    // Uçuş süresi: motorların etkin kaldığı toplam süre
+    if (live && st.armed && !armedAt) armedAt = Date.now();
+    if ((!live || !st.armed) && armedAt) { flownMs += Date.now() - armedAt; armedAt = 0; }
+    const sec = Math.floor((flownMs + (armedAt ? Date.now() - armedAt : 0)) / 1000);
+    set('time', `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`);
   }
 
   function paintOps() {
     const ops = el('#ops');
-    if (!ops.firstChild) buildOps();
+    if (!ops.firstChild) { buildOps(); buildTm(); }
+    paintTm();
     const c = caps();
     const on = !!drone && st.linked && c.mav;
     const key = [on, st.firmware, st.vehicle, st.armed, busy, picking, !!drone, st.linked].join('|');
@@ -410,8 +487,11 @@
     flight = f;
     drone = f.droneId ? await window.api.getDrone(f.droneId) : null;
     const s = store.settings;
+    // Kendi karo sunucusu (çevrimdışı / kurum içi harita): ayarlardaki flightTiles { sat, street } adresleri varsayılanların yerine geçer
+    if (s.flightTiles && typeof s.flightTiles === 'object') { for (const k of ['sat', 'street']) if (typeof s.flightTiles[k] === 'string') TILES[k] = { ...TILES[k], tiles: [s.flightTiles[k]] }; }
     settings0 = { flightTakeoffAlt: s.flightTakeoffAlt };
-    prefs = { layout: f.layout || 'mapPip', hud: s.flightHud !== false, follow: s.flightFollow !== false, style: s.flightStyle === 'street' ? 'street' : 'sat', terrain: s.flightTerrain !== false };
+    el('#deck').classList.toggle('folded', s.flightOpsFolded === true);
+    prefs = { layout: f.layout || 'mapPip', hud: s.flightHud !== false, follow: s.flightFollow !== false, style: s.flightStyle === 'street' ? 'street' : 'sat', tilt: s.flightTilt !== false, flat: s.flightFlat === true };
     hud = new FlightHud(el('#hud'));
     paintTools();
     setLayoutMode(prefs.layout, false);

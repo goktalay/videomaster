@@ -800,7 +800,7 @@ ipcMain.handle('folder:delete', (_e, id) => {
 });
 
 // Görünüm ayarları (panel boyutları vb.) sessizce kaydedilir, yayınlanmaz ve senkronlanmaz
-const QUIET_SETTINGS = ['flightTakeoffAlt', 'flightHud', 'flightFollow', 'flightStyle', 'flightTerrain', 'droneLogOpen', 'droneSideOpen', 'droneLogHeight', 'droneSideWidth', 'droneModule', 'section', 'visionModels', 'panelTab', 'panelOpen', 'panelWidth', 'bottomOpen', 'bottomHeight', 'infoWidth', 'chartRange', 'cardSize', 'openAtLogin', 'minimizeToTray', 'closeToTray', 'trayHintShown', 'recordDir'];
+const QUIET_SETTINGS = ['flightTakeoffAlt', 'flightTilt', 'flightFlat', 'flightOpsFolded', 'flightHud', 'flightFollow', 'flightStyle', 'flightTerrain', 'droneLogOpen', 'droneSideOpen', 'droneLogHeight', 'droneSideWidth', 'droneModule', 'section', 'visionModels', 'panelTab', 'panelOpen', 'panelWidth', 'bottomOpen', 'bottomHeight', 'infoWidth', 'chartRange', 'cardSize', 'openAtLogin', 'minimizeToTray', 'closeToTray', 'trayHintShown', 'recordDir'];
 
 ipcMain.handle('settings:set', (_e, patch) => {
   Object.assign(store.settings, patch);

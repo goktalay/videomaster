@@ -60,7 +60,9 @@ başlatılana kadar motorların etkinleşmesine izin vermez.
 **Yeni uçuş** kayıtlı bir dron ve (isteğe bağlı) kayıtlı bir kamera seçtirir. Uçuş penceresinde:
 
 - **3B harita**: dronun konumu ve yönü, uçulan yüksekliğe kadar yükselen iz, kalkış noktası. Uydu görüntüsü / sokak haritası,
-  3B arazi ve eğik bakış, dronu izleme, kalkış noktasına gitme, izi temizleme.
+  3B eğik bakış ya da üstten bakış, dronu izleme, kalkış noktasına gitme, izi temizleme.
+- **2B harita**: 3B harita (WebGL) bilgisayarda açılamazsa uygulama kendiliğinden sade 2B haritaya geçer; harita araçlarındaki
+  düğmeyle elle de geçilebilir. 2B haritada da her şey çalışır: karolar, dron ve yönü, iz, kalkış noktası, hedef, noktaya git.
 - **Yerleşimler**: harita + küçük kamera, kamera + küçük harita, yan yana, yalnız harita, yalnız kamera. Küçük pencereye tıklamak
   büyüğüyle yer değiştirir. Kamera ve harita ayrı ayrı tam ekran açılabilir (HUD ile birlikte).
 - **HUD**: yapay ufuk ve yunuslama merdiveni, yatış ölçeği, hız ve yükseklik şeritleri, tırmanma göstergesi, yön şeridi; altta uçuş
@@ -68,9 +70,11 @@ başlatılana kadar motorların etkinleşmesine izin vermez.
 - **Kamera paneli** (dişli düğmesi): akış penceresindeki bütün özellikler — akış ayarları, kamera kontrol, yapay görü; ayrıca
   kayıt, anlık görüntü, ses ve akış verisi paneli.
 
-### Uçuş işlemleri çubuğu
+### Yüzen panel: telemetri ve uçuş işlemleri
 
-Haritanın / kameranın üstündeki çubuk temel uçuş komutlarını verir (tam ekranda da görünür):
+Haritanın / kameranın üstünde yüzen panelin üst satırı temel telemetriyi gösterir: uçuş kipi ve motor durumu, yükseklik, hız,
+tırmanma, yön, eve uzaklık, batarya (gerilim ve yüzde), GPS (uydu sayısı ve konum türü) ve uçuş süresi. Alt satır temel uçuş
+komutlarını verir; sağdaki ok bu satırı gizler. Panel tam ekranda da görünür.
 
 | Düğme | Ne yapar |
 | --- | --- |
@@ -84,15 +88,17 @@ Haritanın / kameranın üstündeki çubuk temel uçuş komutlarını verir (tam
 | **İrtifa** | Bulunduğu konumda yeni irtifaya çıkar / iner. |
 | **Acil durdur** | Onaydan sonra motorları hemen keser. **Araç havadaysa düşer**; yalnız acil durumda kullanın. |
 
-- Komutlar ArduPilot ve PX4 içindir. Betaflight kumandadan uçurulur; çubukta komut görünmez.
+- Komutlar ArduPilot ve PX4 içindir. Betaflight kumandadan uçurulur; panelde komut görünmez.
 - "Noktaya git" ve "İrtifa" için aracın havada olması gerekir. Araç bir komutu reddederse nedeni (örn. kurma öncesi denetim iletisi) bildirim olarak görünür.
 - İrtifalar kalkış noktasına göredir.
 
 Bilinmesi gerekenler:
 
-- Harita karoları internetten iner: uydu görüntüsü Esri World Imagery, sokak haritası OpenStreetMap, arazi yüksekliği
-  AWS Terrain Tiles. Bu servislerin kendi kullanım koşulları vardır; çevrimdışıyken harita boş kalır ama dron ve izi çizilir.
-- Dronun haritadaki yüksekliği kalkış noktasına göredir (arazi üstü gerçek yükseklik değil).
+- Harita karoları internetten iner: uydu görüntüsü Esri World Imagery, sokak haritası OpenStreetMap.
+  Bu servislerin kendi kullanım koşulları vardır; çevrimdışıyken harita boş kalır ama dron ve izi çizilir.
+- Dronun haritadaki yüksekliği kalkış noktasına göredir. 3B görünüm eğik bakıştır; arazinin kabartması (dağ, vadi) çizilmez.
+- Kendi karo sunucunuzu (çevrimdışı ya da kurum içi harita) kullanmak için ayar dosyasına
+  `"flightTiles": { "sat": "http://127.0.0.1:8080/sat/{z}/{x}/{y}.png", "street": "…" }` eklenebilir.
 
 ## Geliştirme: benzetimli dron
 
@@ -104,7 +110,7 @@ node scripts/sim-drone.js
 
 Varsayılan olarak 127.0.0.1:14550'ye UDP gönderir (uygulamada **UDPIN 14550**) ve TCP 5760'ı dinler (**TCP 127.0.0.1:5760**).
 
-Varsayılan benzetim sürekli daire çizer. Uçuş işlemleri çubuğunu denemek için aracı yerde başlatan ve komutlara uyan kipi kullanın:
+Varsayılan benzetim sürekli daire çizer. Uçuş işlemlerini denemek için aracı yerde başlatan ve komutlara uyan kipi kullanın:
 
 ```bash
 node scripts/sim-drone.js --interactive
