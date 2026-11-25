@@ -550,11 +550,12 @@ function tileCache() {
   return tiles;
 }
 // Çevrimdışı harita: plan (kaç karo), indirme (ilerleme olayıyla), iptal, önbellek bilgisi ve temizleme
-ipcMain.handle('tiles:plan', (_e, q) => tileCache().plan(q || {}));
+ipcMain.handle('tiles:estimate', (_e, q) => tileCache().estimate(q || {}));
+ipcMain.handle('tiles:list', () => tileCache().list());
 ipcMain.handle('tiles:download', (e, q) => tileCache().download(q || {}, (p) => { try { e.sender.send('tiles:progress', p); } catch { /* pencere kapandı */ } }));
 ipcMain.handle('tiles:cancel', () => tileCache().cancel());
 ipcMain.handle('tiles:stats', () => tileCache().stats());
-ipcMain.handle('tiles:clear', () => tileCache().clear());
+ipcMain.handle('tiles:clear', (_e, source) => tileCache().clear(source));
 
 function registerThumbProtocol() {
   allowWindowCapture();
@@ -575,7 +576,7 @@ function registerThumbProtocol() {
     }
     // Harita karoları: disk önbelleğinden, yoksa ağdan (src/tiles.js)
     if (u.host === 'tiles') {
-      const m = /^\/(sat|street|dem)\/(\d+)\/(\d+)\/(\d+)/.exec(u.pathname);
+      const m = /^\/([a-z_]+)\/(\d+)\/(\d+)\/(\d+)/.exec(u.pathname);
       const data = m ? await tileCache().get(m[1], Number(m[2]), Number(m[3]), Number(m[4])).catch(() => null) : null;
       const headers = { 'Access-Control-Allow-Origin': '*', 'Cross-Origin-Resource-Policy': 'cross-origin' };
       if (!data) return new Response(null, { status: 404, headers });
@@ -824,7 +825,7 @@ ipcMain.handle('folder:delete', (_e, id) => {
 });
 
 // Görünüm ayarları (panel boyutları vb.) sessizce kaydedilir, yayınlanmaz ve senkronlanmaz
-const QUIET_SETTINGS = ['cesiumToken', 'flightGlobe', 'flightHudStyle', 'flightTm', 'missionView', 'missionDrone', 'msDefaultsOpen', 'flightTakeoffAlt', 'flightTilt', 'flightFlat', 'flightOpsFolded', 'flightHud', 'flightFollow', 'flightStyle', 'flightTerrain', 'droneLogOpen', 'droneSideOpen', 'droneLogHeight', 'droneSideWidth', 'droneModule', 'section', 'visionModels', 'panelTab', 'panelOpen', 'panelWidth', 'bottomOpen', 'bottomHeight', 'infoWidth', 'chartRange', 'cardSize', 'openAtLogin', 'minimizeToTray', 'closeToTray', 'trayHintShown', 'recordDir'];
+const QUIET_SETTINGS = ['mapSource', 'mapTerrain', 'mapScene', 'cesiumToken', 'flightGlobe', 'flightHudStyle', 'flightTm', 'missionView', 'missionDrone', 'msDefaultsOpen', 'flightTakeoffAlt', 'flightTilt', 'flightFlat', 'flightOpsFolded', 'flightHud', 'flightFollow', 'flightStyle', 'flightTerrain', 'droneLogOpen', 'droneSideOpen', 'droneLogHeight', 'droneSideWidth', 'droneModule', 'section', 'visionModels', 'panelTab', 'panelOpen', 'panelWidth', 'bottomOpen', 'bottomHeight', 'infoWidth', 'chartRange', 'cardSize', 'openAtLogin', 'minimizeToTray', 'closeToTray', 'trayHintShown', 'recordDir'];
 
 ipcMain.handle('settings:set', (_e, patch) => {
   Object.assign(store.settings, patch);

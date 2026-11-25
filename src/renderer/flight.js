@@ -9,19 +9,15 @@
   const FLIGHT_ID = Q.get('id');
   const HAS_CAM = !!Q.get('cam');
   const el = (s) => document.querySelector(s);
-  const TILES = {
-    sat: { tiles: ['vdm://tiles/sat/{z}/{x}/{y}'], attribution: 'Esri, Maxar, Earthstar Geographics', maxzoom: 19 },
-    street: { tiles: ['vdm://tiles/street/{z}/{x}/{y}'], attribution: '© OpenStreetMap', maxzoom: 19 },
-  };
-
   let flight = null;
   let drone = null;
   let st = { connected: false, linked: false, telemetry: {} };
-  let prefs = { layout: 'mapPip', hud: 'transparent', follow: true, style: 'sat', tilt: true, flat: false };
-  let flatMode = false;      // MapLibre dışı harita kullanılıyor: sade 2B (seçildi ya da 3B açılamadı) ya da 3B küre
-  let globeMode = false;     // 3B küre (Cesium)
-  let cesiumToken = '';
-  const newMarker = (element, gl = {}) => (globeMode ? new GlobeMarker({ element }) : flatMode ? new FlatMarker({ element }) : new maplibregl.Marker({ element, ...gl }));
+  let prefs = { layout: 'mapPip', hud: 'transparent', follow: true };
+  let flatMode = false;      // Cesium açılamadı: WebGL'siz 2B harita kullanılıyor
+  let MarkerClass = null;
+  let settingsAll = {};
+  let vehicleModel = false;  // 3B araç modeli yüklendi (DOM oku gizlenir)
+  const newMarker = (element) => new MarkerClass({ element });
   let map = null;
   let mapReady = false;
   let marker = null;
@@ -91,107 +87,38 @@
     if (hud) hud.visible = prefs.hud === 'transparent';
     if (inst) inst.setMode(prefs.hud === 'instruments' || prefs.hud === 'compact', prefs.hud === 'compact');
     const b = (id, ic, title, on) => `<button class="icon-btn ${on ? 'active' : ''}" data-t="${id}" title="${esc(title)}">${icon(ic)}</button>`;
-    el('#mapTools').innerHTML = b('follow', 'crosshair', t('fl.follow'), prefs.follow) + b('style', 'layers', t(prefs.style === 'sat' ? 'fl.street' : 'fl.sat'), false)
-      + (flatMode ? '' : b('tilt', 'chart', t('fl.tilt'), prefs.tilt)) + b('flat', 'image', t(flatMode && !globeMode ? 'fl.use3d' : 'fl.use2d'), flatMode && !globeMode) + b('globe', 'globe', t('fl.globe'), globeMode) + b('home', 'home', t('fl.goHome'), false) + b('clear', 'broom', t('fl.clearTrack'), false) + b('zin', 'plus', '+', false) + b('zout', 'minus', '−', false) + b('full', 'expand', t('fl.mapFull'), false);
+    el('#mapTools').innerHTML = b('follow', 'crosshair', t('fl.follow'), prefs.follow) + b('layers', 'layers', t('mk.title'), false) + b('home', 'home', t('fl.goHome'), false) + b('clear', 'broom', t('fl.clearTrack'), false) + b('zin', 'plus', '+', false) + b('zout', 'minus', '−', false) + b('full', 'expand', t('fl.mapFull'), false);
   }
   el('#mapTools').onclick = (e) => {
     const b = e.target.closest('[data-t]');
     if (!b || !map) return;
     const a = b.dataset.t;
     if (a === 'follow') { prefs.follow = !prefs.follow; if (prefs.follow && shown) map.easeTo({ center: [shown[0], shown[1]], duration: 400 }); }
-    else if (a === 'style') { prefs.style = prefs.style === 'sat' ? 'street' : 'sat'; applyStyle(); }
-    else if (a === 'tilt') { prefs.tilt = !prefs.tilt; applyTilt(); }
-    else if (a === 'flat') { prefs.flat = globeMode ? true : !flatMode; prefs.globe = false; window.api.setSettings({ flightFlat: prefs.flat, flightGlobe: false }); initMap(); return; }
-    else if (a === 'globe') { toggleGlobe(); return; }
+    else if (a === 'layers') { inStage(MapKit.dialog({ map, flat: flatMode, settings: settingsAll })); return; }
     else if (a === 'home') { const x = st.telemetry || {}; if (x.homeLat || x.homeLon) map.easeTo({ center: [x.homeLon, x.homeLat], duration: 600 }); }
     else if (a === 'clear') { track.length = 0; paintTrack(true); }
     else if (a === 'zin') map.zoomIn();
     else if (a === 'zout') map.zoomOut();
     else if (a === 'full') fullscreen('map');
-    window.api.setSettings({ flightFollow: prefs.follow, flightStyle: prefs.style, flightTilt: prefs.tilt });
+    window.api.setSettings({ flightFollow: prefs.follow });
     paintTools();
   };
 
-  function applyStyle() {
-    if (!mapReady) return;
-    map.setLayoutProperty('sat', 'visibility', prefs.style === 'sat' ? 'visible' : 'none');
-    map.setLayoutProperty('street', 'visibility', prefs.style === 'street' ? 'visible' : 'none');
-  }
-  // 3B görünüm = eğik bakış (iz ve dron yükseklikleriyle). Arazi yükseklik verisi kullanılmaz: yüksek rakımlı yerlerde
-  // kamera zeminin altında kalıp haritayı boş gösteriyordu.
-  function applyTilt() {
-    if (!mapReady || flatMode) return;
-    map.easeTo({ pitch: prefs.tilt ? 60 : 0, duration: 500 });
-  }
-
-  // 3B küre (Cesium): kitaplık ilk kullanımda yüklenir. Arazi kabartması için Cesium ion erişim anahtarı gerekir;
-  // anahtar yalnızca bu bilgisayardaki ayarlarda saklanır. Anahtarsız kullanımda küre düz araziyle açılır.
-  async function toggleGlobe() {
-    if (globeMode) { prefs.globe = false; window.api.setSettings({ flightGlobe: false }); initMap(); return; }
-    if (!cesiumToken && !toggleGlobe.asked) {
-      toggleGlobe.asked = true;
-      const v = await inStage(openModal({
-        title: t('fl.globe'), iconName: 'globe', width: 520,
-        body: `<div class="op-form"><div class="ms-note" style="line-height:1.6">${esc(t('fl.globeNote'))}</div><div class="field"><label>${esc(t('fl.globeToken'))}</label><input class="input mono" id="csTok" type="password" autocomplete="off" spellcheck="false" placeholder="eyJ…"></div></div>`,
-        buttons: [{ label: t('common.giveUp'), value: null }, { label: t('fl.globeNoToken'), value: '' }, { label: t('common.ok'), cls: 'primary', onClick: (m) => m.querySelector('#csTok').value.trim() }],
-      }));
-      if (v === null || v === undefined) { toggleGlobe.asked = false; return; }
-      if (v) { cesiumToken = v; window.api.setSettings({ cesiumToken: v }); }
-    }
-    const note2 = toast(t('fl.globeLoading'), { timeout: 0 });
-    const ok = await GlobeMap.load();
-    note2.remove();
-    if (!ok) { toast(t('fl.globeFail'), { type: 'err' }); return; }
-    prefs.globe = true;
-    window.api.setSettings({ flightGlobe: true });
-    initMap();
-  }
-
   function note(text) { el('#mapNote').textContent = text || ''; el('#mapNote').classList.toggle('hidden', !text); }
 
-  // 3B harita (MapLibre, WebGL) açılamazsa sade 2B haritaya düşülür; kullanıcı araç çubuğundan da 2B'yi seçebilir.
-  function initMap() {
+  // Harita: ortak Cesium küresi (MapKit); Cesium açılamazsa WebGL'siz 2B haritaya düşülür.
+  let mapGen = 0;
+  async function initMap() {
+    const gen = ++mapGen;
     if (map) { try { if (marker) marker.remove(); map.remove(); } catch { /* yok */ } }
-    map = null; mapReady = false; marker = null; shown = null;
+    map = null; mapReady = false; marker = null; shown = null; vehicleModel = false;
     note('');
     const center = (() => { const x = st.telemetry || {}; return Number.isFinite(x.lat) && (x.lat || x.lon) ? [x.lon, x.lat] : [32.8663, 39.9255]; })();
-    flatMode = !!prefs.flat;
-    globeMode = false;
-    if (prefs.globe && window.Cesium) {
-      try {
-        map = new GlobeMap({ container: 'map', center, token: cesiumToken, sources: { sat: TILES.sat, street: TILES.street }, visible: prefs.style });
-        map.on('terrainerror', () => toast(t('fl.globeTerrainFail'), { type: 'err', timeout: 8000 }));
-        globeMode = true; flatMode = true;
-      } catch (e) { console.warn('3B küre açılamadı:', e && e.message); try { if (map) map.remove(); } catch { /* yok */ } map = null; el('#map').innerHTML = ''; prefs.globe = false; toast(t('fl.globeFail'), { type: 'err', sub: String((e && e.message) || e).slice(0, 160), timeout: 8000 }); }
-    }
-    if (!flatMode) {
-      try {
-        if (!window.maplibregl) throw new Error('maplibre');
-        maplibregl.setWorkerUrl('../vendor/maplibre/maplibre-gl-csp-worker.js');
-        const raster = (s) => ({ type: 'raster', tiles: s.tiles, tileSize: 256, maxzoom: s.maxzoom, attribution: s.attribution });
-        map = new maplibregl.Map({
-          container: 'map', attributionControl: { compact: true }, maxPitch: 80,
-          center, zoom: 4, pitch: prefs.tilt ? 60 : 0,
-          style: {
-            version: 8,
-            sources: { sat: raster(TILES.sat), street: raster(TILES.street) },
-            layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#0b1220' } },
-              { id: 'sat', type: 'raster', source: 'sat', layout: { visibility: prefs.style === 'sat' ? 'visible' : 'none' } },
-              { id: 'street', type: 'raster', source: 'street', layout: { visibility: prefs.style === 'street' ? 'visible' : 'none' } }],
-            sky: { 'sky-color': '#7fb4e6', 'horizon-color': '#cfe4f5', 'fog-color': '#cfe4f5', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.2 },
-          },
-        });
-        // Ekran kartı bağlamı yitirilirse 2B haritaya geçilir
-        map.getCanvas().addEventListener('webglcontextlost', () => { if (!flatMode) { prefs.flat = true; initMap(); toast(t('fl.fallback2d'), { timeout: 6000 }); } });
-      } catch (e) {
-        console.warn('3B harita açılamadı, 2B haritaya geçiliyor:', e && e.message);
-        try { if (map) map.remove(); } catch { /* yok */ }
-        map = null; flatMode = true;
-        el('#map').innerHTML = '';
-        toast(t('fl.fallback2d'), { timeout: 6000 });
-      }
-    }
-    if (flatMode && !globeMode) map = new FlatMap({ container: 'map', center, zoom: 4, sources: { sat: TILES.sat, street: TILES.street }, visible: prefs.style });
+    const made = await MapKit.create({ container: 'map', center, zoom: 4, settings: settingsAll, onFallback: () => toast(t('fl.fallback2d'), { timeout: 6000 }) });
+    if (gen !== mapGen) { made.map.remove(); return; }
+    map = made.map; flatMode = made.flat; MarkerClass = made.Marker;
+    map.on('terrainerror', () => toast(t('fl.globeTerrainFail'), { type: 'err', timeout: 8000 }));
+    map.on('vehicle', (ok) => { vehicleModel = !!ok; });
     paintTools();
     let tileErrors = 0;
     map.on('error', () => { if (++tileErrors === 6) note(t('fl.mapOffline')); });
@@ -220,7 +147,7 @@
       const m = document.createElement('div');
       m.className = 'fl-marker';
       m.innerHTML = '<svg viewBox="0 0 48 48"><path d="M24 4 L34 40 L24 33 L14 40 Z" fill="#f43f5e" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/></svg>';
-      marker = newMarker(m, { rotationAlignment: 'map', pitchAlignment: 'map' });
+      marker = newMarker(m);
       paintTarget();
       paintTrack(true);
     });
@@ -237,7 +164,7 @@
     if (!force && now - lastTrackPaint < 500) return;
     lastTrackPaint = now;
     map.getSource('track').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: track.map((p) => [p[0], p[1]]) } });
-    if (globeMode) map.setPath3d(track);
+    if (map.setPath3d) map.setPath3d(track);
     const feats = [];
     const from = Math.max(1, track.length - 1500);
     for (let i = from; i < track.length; i++) {
@@ -257,12 +184,14 @@
     const target = [x.lon, x.lat, Number.isFinite(x.altRel) ? x.altRel : 0];
     if (!shown) { shown = target.slice(); marker.setLngLat([shown[0], shown[1], shown[2]]).addTo(map); map.jumpTo({ center: [shown[0], shown[1], shown[2]], zoom: 16.5 }); }
     for (let i = 0; i < 3; i++) shown[i] += (target[i] - shown[i]) * 0.18;
-    marker.setLngLat(globeMode ? [shown[0], shown[1], Math.max(0, shown[2])] : [shown[0], shown[1]]);
+    marker.setLngLat([shown[0], shown[1], Math.max(0, shown[2])]);
+    // 3B araç modeli (Cesium): konum ve yönelim; model yüklendiyse ok işareti gizlenir
+    if (map.setVehicle) { const has = map.setVehicle({ lon: shown[0], lat: shown[1], alt: Math.max(0, shown[2]), heading: x.heading, pitch: x.pitch, roll: x.roll, mavType: st.mavType }); marker.el.style.visibility = has && vehicleModel ? 'hidden' : ''; }
     // İzleme: kamera her karede yumuşatılmış konuma alınır. (Sürekli easeTo kullanılmaz: MapLibre geçiş sürerken arazi
     // yüksekliğini dondurur; yüksek rakımda kamera zeminin altında kalıp harita boş görünürdü.)
     if (prefs.follow && !map.isEasing() && !map.dragPan.isActive()) {
       const c = map.getCenter();
-      if (globeMode) map.jumpTo({ center: [shown[0], shown[1], Math.max(0, shown[2])] });
+      if (!flatMode) map.jumpTo({ center: [shown[0], shown[1], Math.max(0, shown[2])] });
       else if (Math.abs(c.lng - shown[0]) > 1e-7 || Math.abs(c.lat - shown[1]) > 1e-7) map.jumpTo({ center: [shown[0], shown[1]] });
     }
     marker.setRotation(Number.isFinite(x.heading) ? x.heading : 0);
@@ -633,7 +562,7 @@
       m.className = `fl-wp ${q.index === ms.current ? 'cur' : ''} ${q.type === 'roi' ? 'roi' : ''}`;
       m.textContent = String(q.index + 1);
       m.title = `${q.index + 1}. ${t(`ms.t.${q.type}`)} · ${q.alt} m`;
-      missionMarkers.push(newMarker(m).setLngLat(globeMode ? [q.lon, q.lat, q.alt || 0] : [q.lon, q.lat]).addTo(map));
+      missionMarkers.push(newMarker(m).setLngLat([q.lon, q.lat, q.alt || 0]).addTo(map));
     });
   }
   function missionMenu(btn) {
@@ -673,10 +602,7 @@
   }
   function fitTo(pts) {
     if (!pts.length) return;
-    if (flatMode) { map.fitBounds(pts, 140); return; }
-    let a = Infinity; let b = -Infinity; let c = Infinity; let d = -Infinity;
-    for (const [lo, la] of pts) { a = Math.min(a, lo); b = Math.max(b, lo); c = Math.min(c, la); d = Math.max(d, la); }
-    try { map.fitBounds([[a, c], [b, d]], { padding: 140, maxZoom: 17, duration: 600 }); } catch { /* geçersiz sınır */ }
+    map.fitBounds(pts, 140);
   }
   async function missionJump() {
     const ms = st.mission || { path: [] };
@@ -747,9 +673,8 @@
     const s = store.settings;
     settings0 = { flightTakeoffAlt: s.flightTakeoffAlt };
     el('#stage').classList.toggle('ops-folded', s.flightOpsFolded === true);
-    prefs = { layout: f.layout || 'mapPip', hud: ['transparent', 'instruments', 'compact', 'off'].includes(s.flightHudStyle) ? s.flightHudStyle : s.flightHud === false ? 'off' : 'transparent', follow: s.flightFollow !== false, style: s.flightStyle === 'street' ? 'street' : 'sat', tilt: s.flightTilt !== false, flat: s.flightFlat === true, globe: s.flightGlobe === true };
-    cesiumToken = typeof s.cesiumToken === 'string' ? s.cesiumToken : '';
-    if (prefs.globe) await GlobeMap.load();
+    prefs = { layout: f.layout || 'mapPip', hud: ['transparent', 'instruments', 'compact', 'off'].includes(s.flightHudStyle) ? s.flightHudStyle : s.flightHud === false ? 'off' : 'transparent', follow: s.flightFollow !== false };
+    settingsAll = { ...s };
     hud = new FlightHud(el('#hud'));
     inst = new InstrumentPanel(el('#inst'));
     tmFields = Array.isArray(s.flightTm) && s.flightTm.length ? s.flightTm.filter((k) => TM[k]) : TM_DEFAULT.slice();

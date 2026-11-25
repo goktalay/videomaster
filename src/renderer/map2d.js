@@ -17,8 +17,12 @@ class FlatMap {
     this.el = typeof opts.container === 'string' ? document.getElementById(opts.container) : opts.container;
     this.center = { lng: opts.center[0], lat: opts.center[1] };
     this.zoom = opts.zoom || 4;
-    this.rasters = opts.sources || {};
-    this.visible = opts.visible || Object.keys(this.rasters)[0];
+    // sources: [{ id, maxzoom, credit }] (ortak karo önbelleği) ya da eski biçim { ad: { tiles, maxzoom } }
+    this.rasters = {};
+    if (Array.isArray(opts.sources)) for (const q of opts.sources) this.rasters[q.id] = { tiles: [`vdm://tiles/${q.id}/{z}/{x}/{y}`], maxzoom: q.maxzoom, attribution: q.credit };
+    else Object.assign(this.rasters, opts.sources || {});
+    this.visible = opts.source || opts.visible || Object.keys(this.rasters)[0];
+    this.source = this.visible;
     this.data = {};       // geojson kaynakları
     this.layers = [];     // { id, type, source, paint }
     this.handlers = {};
@@ -42,8 +46,11 @@ class FlatMap {
   addSource(id, src) { this.data[id] = src.data || null; }
   getSource(id) { return { setData: (d) => { this.data[id] = d; this._later(); } }; }
   addLayer(l) { this.layers.push(l); }
-  setLayoutProperty(id, prop, value) { if (prop === 'visibility' && value === 'visible' && this.rasters[id]) { this.visible = id; for (const img of this.tiles.values()) img.remove(); this.tiles.clear(); this._later(); } }
+  setLayoutProperty(id, prop, value) { if (prop === 'visibility' && value === 'visible' && this.rasters[id]) { this.visible = id; this.source = id; for (const img of this.tiles.values()) img.remove(); this.tiles.clear(); this._later(); } }
   setTerrain() {}
+  setScene() {}
+  setSource(id) { this.setLayoutProperty(id, 'visibility', 'visible'); }
+  getBounds() { const w = this.el.clientWidth; const h = this.el.clientHeight; const a = this.unproject(0, 0); const b = this.unproject(w, h); return { north: a.lat, west: a.lng, south: b.lat, east: b.lng }; }
   getCenter() { return { lng: this.center.lng, lat: this.center.lat }; }
   getZoom() { return this.zoom; }
   getPitch() { return 0; }

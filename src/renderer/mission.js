@@ -8,10 +8,6 @@
 (() => {
   const ID = new URLSearchParams(location.search).get('id');
   const $ = (s) => document.querySelector(s);
-  const TILES = {
-    sat: { tiles: ['vdm://tiles/sat/{z}/{x}/{y}'], attribution: 'Esri, Maxar, Earthstar Geographics', maxzoom: 19 },
-    street: { tiles: ['vdm://tiles/street/{z}/{x}/{y}'], attribution: '© OpenStreetMap', maxzoom: 19 },
-  };
   const TYPE_ICON = { takeoff: 'takeoff', waypoint: 'pin', spline: 'route', loiterTime: 'clock', loiterTurns: 'refresh', loiterUnlim: 'refresh', loiterAlt: 'altitude', land: 'land', rtl: 'home', vtolTakeoff: 'takeoff', vtolLand: 'land',
     delay: 'clock', speed: 'gauge', yaw: 'refresh', roi: 'eyeTarget', roiNone: 'eyeOff', jump: 'swap', camTrigDist: 'camera', camPhoto: 'camera', camStop: 'camera', videoStart: 'video', videoStop: 'video', gimbal: 'crosshair', servo: 'bolt', relay: 'bolt', gripper: 'lock', changeAlt: 'altitude', landStart: 'land' };
   const TOOLS = [['select', 'cursor'], ['waypoint', 'pin'], ['roi', 'eyeTarget'], ['survey', 'grid'], ['corridor', 'route'], ['orbit', 'refresh'], ['structure', 'layers'], ['landing', 'land'], ['fencePoly', 'polygon'], ['fenceCircle', 'circleIcon'], ['rally', 'flag'], ['home', 'home'], ['measure', 'ruler']];
@@ -21,7 +17,8 @@
   let settings = {};
   let drones = [];
   let map = null;
-  let style = 'sat';
+  let flatMap = false;      // Cesium açılamadı: WebGL'siz 2B harita
+  let MarkerClass = null;
   let tool = 'select';
   let tab = 'mission';
   let sel = -1;            // seçili görev öğesi
@@ -55,9 +52,11 @@
   function redo() { if (!future.length) return; past.push(snapshot()); doc = JSON.parse(future.pop()); commit(null); }
 
   // ---- Harita ----
-  function initMap() {
+  // Harita: ortak Cesium küresi, üstten bakış; çizimler araziye oturtulur. Cesium açılamazsa 2B harita.
+  async function initMap() {
     const v = settings.missionView;
-    map = new FlatMap({ container: 'map', center: v && Number.isFinite(v.lon) ? [v.lon, v.lat] : [32.8663, 39.9255], zoom: v && v.zoom ? v.zoom : 5, sources: { sat: TILES.sat, street: TILES.street }, visible: style, dblZoom: false });
+    const made = await MapKit.create({ container: 'map', center: v && Number.isFinite(v.lon) ? [v.lon, v.lat] : [32.8663, 39.9255], zoom: v && v.zoom ? v.zoom : 5, settings, topDown: true, clamp: true });
+    map = made.map; flatMap = made.flat; MarkerClass = made.Marker;
     const empty = { type: 'FeatureCollection', features: [] };
     for (const id of ['fence', 'path', 'draft']) map.addSource(id, { type: 'geojson', data: empty });
     map.addLayer({ id: 'fence', type: 'fill', source: 'fence', paint: {} });
@@ -91,7 +90,7 @@
     el.className = `ms-mk ${cls}`;
     el.innerHTML = html;
     if (title) el.title = title;
-    const mk = new FlatMarker({ element: el }).setLngLat([lon, lat]).addTo(map);
+    const mk = new MarkerClass({ element: el }).setLngLat([lon, lat]).addTo(map);
     markers.push(mk);
     el.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
@@ -105,6 +104,7 @@
         moved = true; dragging = true;
         const r = $('#map').getBoundingClientRect();
         const p = map.unproject(ev.clientX - r.left, ev.clientY - r.top);
+        if (!p) return;
         mk.setLngLat([p.lng, p.lat]);
         onDrag(p.lat, p.lng);
         paintShapes();
@@ -183,15 +183,14 @@
     $('#hint').textContent = tool === 'measure' && draft.length > 1 ? `${t('ms.tool.measure')}: ${fmtDist(draft.reduce((a, q, i) => (i ? a + MISSION.distance(draft[i - 1][0], draft[i - 1][1], q[0], q[1]) : 0), 0))}` : hint;
     $('#hint').classList.toggle('hidden', !hint);
     $('#map').classList.toggle('picking', tool !== 'select');
-    $('#mapTools').innerHTML = [['style', 'layers', t(style === 'sat' ? 'fl.street' : 'fl.sat')], ['fit', 'crosshair', t('ms.fit')], ['offline', 'download', t('ms.offline')], ['zin', 'plus', '+'], ['zout', 'minus', '−']].map(([id, ic, title]) => `<button class="icon-btn" data-t="${id}" title="${esc(title)}">${icon(ic)}</button>`).join('');
+    $('#mapTools').innerHTML = [['layers', 'layers', t('mk.title')], ['fit', 'crosshair', t('ms.fit')], ['zin', 'plus', '+'], ['zout', 'minus', '−']].map(([id, ic, title]) => `<button class="icon-btn" data-t="${id}" title="${esc(title)}">${icon(ic)}</button>`).join('');
   }
   $('#tools').onclick = (e) => { const b = e.target.closest('[data-tool]'); if (b) setTool(b.dataset.tool === tool ? 'select' : b.dataset.tool); };
   $('#mapTools').onclick = (e) => {
     const b = e.target.closest('[data-t]');
     if (!b) return;
-    if (b.dataset.t === 'style') { style = style === 'sat' ? 'street' : 'sat'; map.setLayoutProperty(style, 'visibility', 'visible'); window.api.setSettings({ flightStyle: style }); paintTools(); }
+    if (b.dataset.t === 'layers') MapKit.dialog({ map, flat: flatMap, settings });
     else if (b.dataset.t === 'fit') fit();
-    else if (b.dataset.t === 'offline') offlineDialog();
     else if (b.dataset.t === 'zin') map.zoomIn(); else map.zoomOut();
   };
 
@@ -400,52 +399,6 @@
     if (h0 === null || el.some((v) => v === null)) { toast(t('ms.noTerrain'), { type: 'err', timeout: 6000 }); return; }
     change(() => { list.forEach(([it], k) => { it.alt = Math.round((el[k] + h - h0) * 10) / 10; it.frame = 'rel'; }); });
     toast(t('ms.terrainAdjusted', { n: list.length }), { type: 'ok' });
-  }
-
-  // ---- Çevrimdışı harita ----
-  async function offlineDialog() {
-    const r = $('#map').getBoundingClientRect();
-    const nw = map.unproject(0, 0); const se = map.unproject(r.width, r.height);
-    const bbox = { north: nw.lat, west: nw.lng, south: se.lat, east: se.lng };
-    const z0 = Math.max(2, Math.round(map.getZoom()));
-    const fmtB = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`);
-    let running = false;
-    const off = window.api.onTilesProgress((p) => { const b = document.querySelector('[data-off-bar] i'); const l = document.querySelector('[data-off-prog]'); if (b) b.style.width = `${(p.done / p.total) * 100}%`; if (l) l.textContent = `${p.done} / ${p.total}${p.failed ? ` · ${t('ms.offFailed', { n: p.failed })}` : ''}`; });
-    await openModal({
-      title: t('ms.offline'), iconName: 'download', width: 520,
-      body: `<div class="op-form"><div class="ms-note">${esc(t('ms.offNote'))}</div>
-        <div class="ms-off-src">${[['sat', t('fl.sat')], ['street', t('fl.street')], ['dem', t('ms.offDem')]].map(([k, l]) => `<label class="ms-check"><input type="checkbox" data-src="${k}" ${k === style || k === 'dem' ? 'checked' : ''}><span>${esc(l)}</span><em data-count="${k}"></em></label>`).join('')}</div>
-        ${numField('zmax', t('ms.offZoom', { z: z0 }), Math.min(19, z0 + 2), z0, 19, 1)}
-        <div class="ms-calc" data-off-info></div>
-        <div class="ms-off-bar" data-off-bar><i></i></div><div class="ms-note" data-off-prog></div>
-        <div class="ms-note" data-off-stats></div></div>`,
-      buttons: [{ label: t('ms.offClear'), left: true, cls: 'danger', onClick: async (m) => { await window.api.tilesClear(); stats(m); return false; } },
-        { label: t('common.close'), value: null, onClick: () => { if (running) window.api.tilesCancel(); } },
-        { label: t('ms.offStart'), cls: 'primary', onClick: async (m, btn) => {
-          if (running) return false;
-          const q = query(m);
-          if (!q.sources.length) return false;
-          running = true; btn.disabled = true;
-          const res = await window.api.tilesDownload(q);
-          running = false; btn.disabled = false;
-          const l = m.querySelector('[data-off-prog]');
-          if (res && res.ok) l.textContent = t('ms.offDone', { n: res.total - res.failed, failed: res.failed });
-          else l.textContent = res && res.error === 'too_many' ? t('ms.offTooMany', { n: res.count, limit: res.limit }) : res && res.cancelled ? t('ms.offCancelled') : t('dr.failed');
-          stats(m);
-          return false;
-        } }],
-      onMount: (m) => { enhanceNumbers(m); const upd = () => planInfo(m); m.addEventListener('input', upd); m.addEventListener('change', upd); upd(); stats(m); },
-    });
-    off();
-    function query(m) { return { sources: [...m.querySelectorAll('[data-src]:checked')].map((x) => x.dataset.src), bbox, zmin: z0, zmax: Number(m.querySelector('[data-f="zmax"]').value) || z0 }; }
-    async function planInfo(m) {
-      const q = query(m);
-      const p = await window.api.tilesPlan({ ...q, sources: ['sat', 'street', 'dem'] });
-      let over = '';
-      for (const k of ['sat', 'street', 'dem']) { const c = m.querySelector(`[data-count="${k}"]`); if (c && p[k]) { c.textContent = t('ms.offTiles', { n: p[k].count }); c.classList.toggle('bad', !p[k].allowed); if (!p[k].allowed && q.sources.includes(k)) over = t('ms.offLimit', { limit: p[k].limit }); } }
-      m.querySelector('[data-off-info]').innerHTML = over ? `${icon('alert')}<span>${esc(over)}</span>` : '';
-    }
-    async function stats(m) { const st = await window.api.tilesStats(); const x = m.querySelector('[data-off-stats]'); if (x) x.textContent = t('ms.offStats', { n: st.files, size: fmtB(st.bytes) }); }
   }
 
   async function circleDialog(lat, lon) {
@@ -726,12 +679,11 @@
     if (!m) return window.close();
     settings = store.settings || {};
     drones = store.drones || [];
-    style = settings.flightStyle === 'street' ? 'street' : 'sat';
     doc = { ...MISSION.normalize(m), id: ID };
     themeButton($('#btnTheme'), () => settings);
-    initMap();
+    await initMap();
     paintAll();
     $('#msSub').textContent = t('ms.saved');
-    requestAnimationFrame(() => { fit(); });
+    setTimeout(fit, 300);
   })();
 })();
