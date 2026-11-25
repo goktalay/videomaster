@@ -187,7 +187,7 @@
     'fl.tm.batt': 'Battery',
     'fl.tm.time': 'Flight time',
     'fl.tm.noFix': 'no fix',
-    'fl.tm.fold': 'Hide / show the action buttons',
+    'fl.tm.fold': 'Hide / show the bottom action bar',
     'fl.op.takeoff': 'Take off',
     'fl.op.land': 'Land',
     'fl.op.rtl': 'Return home',

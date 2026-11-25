@@ -187,7 +187,7 @@
     'fl.tm.batt': 'Batarya',
     'fl.tm.time': 'Uçuş süresi',
     'fl.tm.noFix': 'yok',
-    'fl.tm.fold': 'İşlem düğmelerini gizle / göster',
+    'fl.tm.fold': 'Alttaki işlem çubuğunu gizle / göster',
     'fl.op.takeoff': 'Kalkış',
     'fl.op.land': 'İniş',
     'fl.op.rtl': 'Eve dön',

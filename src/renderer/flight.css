@@ -38,7 +38,8 @@
 
 /* Yüzen panel: temel telemetri + uçuş işlemleri (haritanın / kameranın üstünde; tam ekranda da görünür) */
 .fl-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.fl-stage { --deck-h: 0px; }
+.fl-stage { --deck-h: 0px; --dock-h: 0px; --pip-w: 0px; }
+.fl-stage[data-layout="mapPip"], .fl-stage[data-layout="videoPip"] { --pip-w: calc(clamp(240px, 27%, 520px) + 28px); }
 .fl-deck {
   position: absolute; z-index: 8; top: 12px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px);
   display: grid; gap: 8px; padding: 10px 12px; border-radius: 18px; color: #e8f0fb;
@@ -69,10 +70,12 @@
 .fl-tm .tm-fold { align-self: center; border: none; background: transparent; color: #8fa3bf; cursor: pointer; padding: 6px; border-radius: 8px; display: inline-flex; }
 .fl-tm .tm-fold:hover { background: rgba(255, 255, 255, .1); color: #fff; }
 .fl-tm .tm-fold svg { width: 16px; height: 16px; transition: transform .2s; }
-.fl-deck.folded .tm-fold svg { transform: rotate(-90deg); }
-.fl-deck.folded .fl-ops { display: none; }
+.fl-stage.ops-folded .tm-fold svg { transform: rotate(-90deg); }
+.fl-stage.ops-folded .fl-dock { display: none; }
+/* Alttaki işlem çubuğu: küçük pencerenin (PiP) kapladığı yer dışında kalan alana ortalanır */
+.fl-dock { top: auto; bottom: 14px; left: calc((100% - var(--pip-w)) / 2); max-width: calc(100% - var(--pip-w) - 24px); padding: 8px 10px; }
 
-.fl-ops { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; justify-content: center; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .09); }
+.fl-ops { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .fl-ops .btn { height: 32px; white-space: nowrap; flex: none; border-radius: 10px; background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .13); color: #e8f0fb; }
 .fl-ops .btn:not(:disabled):hover { background: rgba(255, 255, 255, .17); }
 .fl-ops .btn svg { width: 16px; height: 16px; }
@@ -94,7 +97,9 @@
 /* Panelin altında kalanlar aşağı kayar */
 .fl-map-tools { top: calc(var(--deck-h) + 24px); }
 .fl-stage[data-layout="videoPip"] .fl-map-tools { top: 12px; }
-.fl-stage > #hud { top: calc(var(--deck-h) + 20px); height: calc(100% - var(--deck-h) - 20px); }
+.fl-stage > #hud { top: calc(var(--deck-h) + 20px); height: calc(100% - var(--deck-h) - var(--dock-h) - 40px); }
+.fl-map-note { bottom: calc(var(--dock-h) + 26px); }
+.fl-stage[data-layout="videoPip"] .fl-map-note { display: none; }
 .fl-stage .vw-video .vw-osd { margin-top: calc(var(--deck-h) + 16px); }
 .fl-stage[data-layout="mapPip"] .vw-video .vw-osd { margin-top: 0; }
 

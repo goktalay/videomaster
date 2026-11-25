@@ -316,8 +316,9 @@
       ${box('alt', t('tm.altRel'), 'm')}${box('spd', t('fl.tm.speed'), 'm/s')}${box('climb', t('tm.climb'), 'm/s')}${box('hdg', t('tm.heading'), '°')}${box('home', t('fl.tm.home'), 'm')}
       ${box('batt', t('fl.tm.batt'), 'V', '<span class="bar"><i></i></span>')}${box('gps', 'GPS')}${box('time', t('fl.tm.time'))}
       <button type="button" class="tm-fold" id="tmFold" title="${esc(t('fl.tm.fold'))}">${icon('chevronDown')}</button>`;
-    el('#tmFold').onclick = () => { const f = !el('#deck').classList.contains('folded'); el('#deck').classList.toggle('folded', f); window.api.setSettings({ flightOpsFolded: f }); };
-    new ResizeObserver(() => { el('#stage').style.setProperty('--deck-h', `${el('#deck').offsetHeight}px`); if (map) map.resize(); }).observe(el('#deck'));
+    el('#tmFold').onclick = () => { const f = !el('#stage').classList.contains('ops-folded'); el('#stage').classList.toggle('ops-folded', f); window.api.setSettings({ flightOpsFolded: f }); };
+    const ro = new ResizeObserver(() => { const stg = el('#stage').style; stg.setProperty('--deck-h', `${el('#deck').offsetHeight}px`); stg.setProperty('--dock-h', `${el('#dock').offsetHeight}px`); });
+    ro.observe(el('#deck')); ro.observe(el('#dock'));
     setInterval(paintTm, 1000);
   }
   function paintTm() {
@@ -490,7 +491,7 @@
     // Kendi karo sunucusu (çevrimdışı / kurum içi harita): ayarlardaki flightTiles { sat, street } adresleri varsayılanların yerine geçer
     if (s.flightTiles && typeof s.flightTiles === 'object') { for (const k of ['sat', 'street']) if (typeof s.flightTiles[k] === 'string') TILES[k] = { ...TILES[k], tiles: [s.flightTiles[k]] }; }
     settings0 = { flightTakeoffAlt: s.flightTakeoffAlt };
-    el('#deck').classList.toggle('folded', s.flightOpsFolded === true);
+    el('#stage').classList.toggle('ops-folded', s.flightOpsFolded === true);
     prefs = { layout: f.layout || 'mapPip', hud: s.flightHud !== false, follow: s.flightFollow !== false, style: s.flightStyle === 'street' ? 'street' : 'sat', tilt: s.flightTilt !== false, flat: s.flightFlat === true };
     hud = new FlightHud(el('#hud'));
     paintTools();

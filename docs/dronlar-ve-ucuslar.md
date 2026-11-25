@@ -72,9 +72,9 @@ başlatılana kadar motorların etkinleşmesine izin vermez.
 
 ### Yüzen panel: telemetri ve uçuş işlemleri
 
-Haritanın / kameranın üstünde yüzen panelin üst satırı temel telemetriyi gösterir: uçuş kipi ve motor durumu, yükseklik, hız,
-tırmanma, yön, eve uzaklık, batarya (gerilim ve yüzde), GPS (uydu sayısı ve konum türü) ve uçuş süresi. Alt satır temel uçuş
-komutlarını verir; sağdaki ok bu satırı gizler. Panel tam ekranda da görünür.
+Haritanın / kameranın üstünde iki ayrı yüzen panel vardır. Üstteki panel temel telemetriyi gösterir: uçuş kipi ve motor durumu, yükseklik, hız,
+tırmanma, yön, eve uzaklık, batarya (gerilim ve yüzde), GPS (uydu sayısı ve konum türü) ve uçuş süresi. Alttaki çubuk temel uçuş
+komutlarını verir; üst paneldeki ok bu çubuğu gizler. Paneller tam ekranda da görünür.
 
 | Düğme | Ne yapar |
 | --- | --- |
