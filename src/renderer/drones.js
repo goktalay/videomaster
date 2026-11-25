@@ -103,6 +103,37 @@ async function editFlight(flight, data) {
   });
 }
 
+// --- Telemetri kayıtları: liste, oynatma, silme -------------------------------------------------
+const fmtDur = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); const hh = Math.floor(s / 3600); const mm = Math.floor((s % 3600) / 60); return `${hh ? `${hh}:` : ''}${String(mm).padStart(hh ? 2 : 1, '0')}:${String(s % 60).padStart(2, '0')}`; };
+const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+function showDroneLogs(d) {
+  const body = h('<div class="dl-list"></div>');
+  async function load() {
+    const logs = await window.api.droneLogs(d.id);
+    if (!logs.length) { body.innerHTML = `<div class="empty-note">${esc(t('dl.empty'))}</div>`; return; }
+    body.innerHTML = logs.map((l, i) => {
+      const when = new Date(l.startedAt);
+      const facts = l.recording ? `<span class="tag err">${esc(t('dl.recording'))}</span>` : l.broken ? `<span class="tag warn">${esc(t('dl.broken'))}</span>`
+        : `<span>${esc(t('dl.flown', { time: fmtDur(l.armedMs || 0) }))}</span><span>${esc(t('dl.maxAlt', { alt: l.maxAlt || 0 }))}</span><span>${esc(l.distance >= 1000 ? `${(l.distance / 1000).toFixed(2)} km` : `${l.distance || 0} m`)}</span><span>${fmtSize(l.size)}</span>`;
+      return `<div class="dl-row" data-i="${i}"><div class="dl-when"><b>${esc(when.toLocaleDateString())}</b><span>${esc(when.toLocaleTimeString())}</span></div>
+        <div class="dl-main"><div class="dl-dur">${icon('clock')}${fmtDur(l.durationMs)}</div><div class="dl-facts">${facts}</div></div>
+        <button class="btn sm primary" data-play ${l.recording || l.broken ? 'disabled' : ''}>${icon('play')}${esc(t('dl.play'))}</button>
+        <button class="icon-btn" data-del title="${esc(t('common.delete'))}" ${l.recording ? 'disabled' : ''}>${icon('trash')}</button></div>`;
+    }).join('');
+    body.querySelectorAll('.dl-row').forEach((row) => {
+      const l = logs[Number(row.dataset.i)];
+      row.querySelector('[data-play]').onclick = async () => { const r = await window.api.droneLogReplay(d.id, l.file); if (!r || !r.ok) toast(t('dl.playFailed'), { type: 'err' }); };
+      row.ondblclick = () => row.querySelector('[data-play]').click();
+      row.querySelector('[data-del]').onclick = async () => { await window.api.droneLogDelete(d.id, l.file); load(); };
+    });
+  }
+  load();
+  openModal({
+    title: `${t('dl.title')} — ${d.name}`, iconName: 'history', width: 640, body,
+    buttons: [{ label: t('dl.openDir'), icon: 'folder', left: true, onClick: () => { window.api.droneLogOpenDir(d.id); return false; } }, { label: t('common.close'), value: null }],
+  });
+}
+
 // --- Kartlar ----------------------------------------------------------------------------------
 function droneChip(id) {
   const b = droneBriefs.get(id);
@@ -113,17 +144,19 @@ function droneChip(id) {
 
 function droneCard(d, data) {
   const el = h(`<div class="card drone-card" data-id="${esc(d.id)}" style="--c:${DRONE.FW_COLOR[d.firmware] || '#22d3ee'}">
-    <div class="drone-art">${droneGlyph()}<div class="quick"><button class="icon-btn" data-a="edit" title="${esc(t('dr.editTitle'))}">${icon('gear')}</button><button class="icon-btn" data-a="open" title="${esc(t('common.open'))}">${icon('expand')}</button></div></div>
+    <div class="drone-art">${droneGlyph()}<div class="quick"><button class="icon-btn" data-a="logs" title="${esc(t('dl.title'))}">${icon('history')}</button><button class="icon-btn" data-a="edit" title="${esc(t('dr.editTitle'))}">${icon('gear')}</button><button class="icon-btn" data-a="open" title="${esc(t('common.open'))}">${icon('expand')}</button></div></div>
     <div class="conn-body"><div class="card-title">${esc(d.name)}</div><div class="card-sub">${esc(DRONE.display(d))}</div>
       <div class="card-foot"><span class="tag proto-tag">${icon(FW_ICON[d.firmware] || 'upload')}${esc(t(`dr.o.firmware.${d.firmware}`))}</span><span data-chip>${droneChip(d.id)}</span></div></div></div>`);
   el.ondblclick = () => window.api.openDrone(d.id);
   el.querySelector('[data-a="open"]').onclick = (e) => { e.stopPropagation(); window.api.openDrone(d.id); };
   el.querySelector('[data-a="edit"]').onclick = (e) => { e.stopPropagation(); editDrone(d); };
+  el.querySelector('[data-a="logs"]').onclick = (e) => { e.stopPropagation(); showDroneLogs(d); };
   el.oncontextmenu = (e) => {
     e.preventDefault();
     contextMenu(e.clientX, e.clientY, [
       { label: t('common.open'), icon: 'expand', action: () => window.api.openDrone(d.id) },
       { label: t('dr.editTitle'), icon: 'gear', action: () => editDrone(d) },
+      { label: t('dl.title'), icon: 'history', action: () => showDroneLogs(d) },
       { label: t('fl.newFor'), icon: 'plus', action: async () => { const id = await editFlight({ droneId: d.id }, data); if (id) window.api.openFlight(id); } },
       { label: t('app.duplicate'), icon: 'copy', action: () => window.api.duplicateDrone(d.id) },
       '-',

@@ -237,7 +237,7 @@
   // --- Dron durumu ---
   function paintDrone() {
     el('#flName').textContent = flight.name;
-    el('#flSub').textContent = drone ? `${drone.name} · ${st.link || DRONE.display(drone)}` : t('fl.droneGone');
+    el('#flSub').textContent = st.replay ? `${t('dl.replay')} · ${new Date(st.replay.startedAt).toLocaleString()}` : drone ? `${drone.name} · ${st.link || DRONE.display(drone)}` : t('fl.droneGone');
     document.title = `${flight.name} — Video Master`;
     const chip = el('#drState');
     chip.className = `state-chip s-${st.linked ? 'playing' : st.connected ? 'connecting' : st.error ? 'error' : 'idle'}`;
@@ -256,7 +256,7 @@
   window.api.onDroneState((m) => { if (drone && m.id === drone.id) applyState(m.state); });
   window.api.onDroneStatustext((m) => { if (drone && m.id === drone.id && m.severity <= 4) toast(m.text, { type: m.severity <= 3 ? 'err' : '', timeout: 5000 }); });
   window.api.onFlightChanged((f) => { if (f.id === FLIGHT_ID) { flight = f; paintDrone(); } });
-  el('#drState').onclick = async () => { if (!drone) return; if (st.connected) await window.api.droneDisconnect(drone.id); else applyState(await window.api.droneConnect(drone.id)); };
+  el('#drState').onclick = async () => { if (!drone || st.replay || (flight && flight.replay)) return; if (st.connected) await window.api.droneDisconnect(drone.id); else applyState(await window.api.droneConnect(drone.id)); };
   el('#drState').title = t('fl.toggleLink');
 
   // --- Temel uçuş işlemleri çubuğu ---
@@ -355,10 +355,44 @@
     set('time', `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`);
   }
 
+  // --- Kayıt oynatma: kayıtlı telemetri canlı uçuş gibi gösterilir; alttaki çubuk oynatıcıya dönüşür ---
+  const SPEEDS = [1, 2, 4, 8, 16];
+  let seeking = false;
+  const clock = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); const hh = Math.floor(s / 3600); return `${hh ? `${hh}:` : ''}${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+  function setTrack(path) { track.length = 0; if (Array.isArray(path)) for (const p of path) track.push(p); shown = null; target = null; paintTrack(true); paintTarget(); }
+  function buildReplay() {
+    const bar = el('#replayBar');
+    bar.innerHTML = `<span class="rp-badge">${icon('history')}${esc(t('dl.replay'))}</span>
+      <button class="btn rp-play" id="rpPlay"></button><span class="rp-time" id="rpPos">00:00</span>
+      <input type="range" id="rpSeek" min="0" max="1000" step="100" value="0"><span class="rp-time" id="rpDur">00:00</span>
+      <div class="seg sm" id="rpSpeed">${SPEEDS.map((x) => `<button type="button" data-x="${x}">${x}×</button>`).join('')}</div>`;
+    el('#rpPlay').onclick = async () => { const r = await call('replayPlay', !(st.replay && st.replay.playing)); if (r && r.ok && st.replay && st.replay.pos >= st.replay.duration) setTrack(r.path); };
+    el('#rpSpeed').onclick = (e) => { const b = e.target.closest('[data-x]'); if (b) call('replaySpeed', Number(b.dataset.x)); };
+    const seek = el('#rpSeek');
+    seek.addEventListener('input', () => { seeking = true; el('#rpPos').textContent = clock(Number(seek.value)); });
+    seek.addEventListener('change', async () => { const r = await call('replaySeek', Number(seek.value)); seeking = false; if (r && r.ok) setTrack(r.path); });
+  }
+  function paintReplay() {
+    const rp = st.replay;
+    const bar = el('#replayBar');
+    bar.classList.toggle('hidden', !rp);
+    el('#ops').classList.toggle('replay', !!rp);
+    if (!rp) return;
+    if (!bar.firstChild) buildReplay();
+    el('#rpPlay').innerHTML = icon(rp.playing ? 'pause' : 'play');
+    el('#rpPlay').title = t(rp.playing ? 'dr.logPause' : 'dl.play');
+    el('#rpDur').textContent = clock(rp.duration);
+    const seek = el('#rpSeek');
+    if (Number(seek.max) !== rp.duration) seek.max = String(rp.duration);
+    if (!seeking) { seek.value = String(rp.pos); el('#rpPos').textContent = clock(rp.pos); }
+    for (const b of el('#rpSpeed').children) b.classList.toggle('on', Number(b.dataset.x) === rp.speed);
+  }
+
   function paintOps() {
     const ops = el('#ops');
     if (!ops.firstChild) { buildOps(); buildTm(); }
     paintTm();
+    paintReplay();
     const c = caps();
     const on = !!drone && st.linked && c.mav;
     const key = [on, st.firmware, st.vehicle, st.armed, busy, picking, !!drone, st.linked].join('|');

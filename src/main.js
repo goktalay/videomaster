@@ -940,14 +940,21 @@ ipcMain.handle('tap:save', async (event, { id, base, length }) => {
 // ---------------------------------------------------------------------------
 const droneWindows = new Map();  // dronId → pencere
 const flightWindows = new Map(); // uçuşId → pencere
-const getDrone = (id) => store.drones.find((d) => d.id === id) || null;
-const getFlight = (id) => store.flights.find((f) => f.id === id) || null;
+// Kayıt oynatma: geçici (saklanmayan) dron + uçuş çifti; kimlik "replay-…"
+const replays = new Map(); // kimlik → { drone, flight, log }
+const getDrone = (id) => store.drones.find((d) => d.id === id) || (replays.has(id) ? replays.get(id).drone : null);
+const getFlight = (id) => store.flights.find((f) => f.id === id) || (replays.has(id) ? replays.get(id).flight : null);
+let flightLogs = null;
+function droneLogs() {
+  if (!flightLogs) flightLogs = require('./drone/flightlog').createFlightLog({ dir: () => userDir('logs') });
+  return flightLogs;
+}
 
 // Bir dronun olaylarını ilgili pencerelere dağıtır: dron penceresi + o dronu kullanan uçuş pencereleri
 function droneEmit(channel, payload) {
-  const targets = [droneWindows.get(payload.id), ...store.flights.filter((f) => f.droneId === payload.id).map((f) => flightWindows.get(f.id))];
+  const targets = [droneWindows.get(payload.id), ...store.flights.filter((f) => f.droneId === payload.id).map((f) => flightWindows.get(f.id)), replays.has(payload.id) ? flightWindows.get(payload.id) : null];
   for (const w of targets) if (w && !w.isDestroyed()) w.webContents.send(channel, payload);
-  if (channel === 'drone:state' && mainWindow && !mainWindow.isDestroyed()) {
+  if (channel === 'drone:state' && !replays.has(payload.id) && mainWindow && !mainWindow.isDestroyed()) {
     const st = payload.state || {};
     mainWindow.webContents.send('drone:brief', { id: payload.id, connected: !!st.connected, linked: !!st.linked, armed: !!st.armed, mode: st.mode || '', error: st.error || null });
   }
@@ -961,7 +968,9 @@ function drones() {
   droneSessions = createDroneSessions({
     getDrone,
     emit: droneEmit,
+    recorder: droneLogs(),
     createVehicle: (d) => {
+      if (replays.has(d.id)) { const { ReplayVehicle } = require('./drone/flightlog'); return new ReplayVehicle(replays.get(d.id).log); }
       if (d.firmware === 'betaflight') { const { BfVehicle } = require('./drone/betaflight'); return new BfVehicle(DRONE.linkConfig(d), { streamRate: d.streamRate }); } // MSP + CLI
       const { MavVehicle } = require('./drone/vehicle');
       return new MavVehicle(DRONE.linkConfig(d), { gcsSysid: d.gcsSysid, streamRate: d.streamRate, firmwareHint: d.firmware === 'px4' ? 'px4' : 'ardupilot' });
@@ -1029,6 +1038,7 @@ function openFlight(id) {
     win.on('closed', () => {
       flightWindows.delete(id);
       if (f.droneId) releaseDrone(f.droneId);
+      replays.delete(id);
       // Kamera akışı yalnızca bu uçuş için açıldıysa durdurulur
       const s = f.cameraId && sessions.get(f.cameraId);
       if (s && !viewers.has(f.cameraId)) { dropSubscriber(f.cameraId); if (s.running && s.origin !== 'card' && !s.rec.wanted) s.stop().catch(() => {}); else if (s.running) s.setProfile('card').catch(() => {}); }
@@ -1081,6 +1091,7 @@ ipcMain.handle('drone:paramsImport', async (event) => {
 });
 
 function saveFlight(form) {
+  if (form.id && replays.has(form.id)) { if (form.layout) replays.get(form.id).flight.layout = form.layout; return { ok: true, id: form.id }; }
   const prev = form.id ? getFlight(form.id) : null;
   const f = DRONE.normalizeFlight({ ...(prev || {}), ...form });
   if (!f.name) return { ok: false, invalid: ['name'] };
@@ -1109,6 +1120,25 @@ ipcMain.handle('flight:delete', (_e, id) => {
   broadcastStore();
 });
 ipcMain.handle('flight:open', (_e, id) => openFlight(id));
+
+// ---- Telemetri kayıtları: listeleme, silme, klasör, oynatma ----
+ipcMain.handle('dronelog:list', (_e, droneId) => (getDrone(droneId) ? droneLogs().list(droneId) : []));
+ipcMain.handle('dronelog:delete', (_e, { droneId, file } = {}) => { try { return droneLogs().remove(droneId, file); } catch { return false; } });
+ipcMain.handle('dronelog:openDir', (_e, droneId) => { const dir = droneLogs().dirOf(droneId); fs.mkdirSync(dir, { recursive: true }); return shell.openPath(dir); });
+ipcMain.handle('dronelog:replay', (_e, { droneId, file } = {}) => {
+  const d = getDrone(droneId);
+  if (!d) return { ok: false, error: 'not_found' };
+  let log = null;
+  try { log = droneLogs().read(droneId, file); } catch { log = null; }
+  if (!log || !log.records.length) return { ok: false, error: 'empty' };
+  const id = `replay-${uid()}`;
+  const when = new Date(log.header.startedAt);
+  const name = `${d.name} — ${when.toLocaleDateString()} ${when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  replays.set(id, { log, drone: { ...d, id, name: d.name, replay: true }, flight: { id, name, droneId: id, cameraId: null, layout: 'map', replay: true } });
+  drones(); // oturum yöneticisi hazır olsun
+  openFlight(id);
+  return { ok: true, id };
+});
 
 // ---- Uçuş penceresinin tamamını videoya kaydetme (harita + kamera + HUD + paneller) ----
 // Pencere kendi görüntüsünü getDisplayMedia ile alır (yalnız uçuş penceresine izin verilir), MediaRecorder parçalarını

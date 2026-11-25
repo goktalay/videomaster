@@ -101,6 +101,22 @@ Bilinmesi gerekenler:
 - Kendi karo sunucunuzu (çevrimdışı ya da kurum içi harita) kullanmak için ayar dosyasına
   `"flightTiles": { "sat": "http://127.0.0.1:8080/sat/{z}/{x}/{y}.png", "street": "…" }` eklenebilir.
 
+## Uçuş kayıtları ve oynatma
+
+Dron bağlıyken bütün telemetri kendiliğinden kaydedilir: konum, yükseklik, hız, yönelim, batarya, GPS, kumanda ve motor
+değerleri, uçuş kipi, motor durumu ve aracın durum iletileri (saniyede en çok 10 kayıt).
+
+- Kayıt, araçtan veri gelmeye başlayınca açılır ve **bağlantı kesilince kapanır**; yeniden bağlanınca **yeni bir kayıt** başlar.
+  2 saniyeden kısa kayıtlar saklanmaz.
+- Dron kartının üstündeki **saat düğmesi** (ya da sağ tık → Uçuş kayıtları) o dronun kayıtlarını listeler: tarih, süre, uçuş
+  süresi, en yüksek irtifa, katedilen yol. **Oynat** kaydı bir uçuş penceresinde gerçek uçuşmuş gibi gösterir: harita, iz, HUD
+  ve telemetri paneli kayda göre ilerler; durum iletileri bildirim olarak çıkar.
+- Oynatıcı alttaki çubuktadır: oynat / duraklat, ileri-geri sarma, 1×–16× hız. Oynatma sırasında uçuş komutları gösterilmez;
+  **Ekranı kaydet** kullanılabilir. Oynatılan kayıt yeniden kaydedilmez.
+- Dosyalar uygulamanın veri klasöründe `logs/<dron>/TARİH-SAAT.vmlog.gz` olarak durur (gzip'li, satır başına bir JSON);
+  listedeki **Kayıt klasörünü aç** düğmesi klasörü açar. Kayıtlar hesapla eşitlenmez, yalnızca bu bilgisayardadır.
+- Ham MAVLink paketleri (`.tlog`) kaydedilmez; kayıtlar Mission Planner'da açılamaz.
+
 ## Geliştirme: benzetimli dron
 
 Gerçek dron olmadan denemek için depoda sahte bir ArduCopter vardır:

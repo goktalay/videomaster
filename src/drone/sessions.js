@@ -6,9 +6,10 @@
 const DRONE = require('./schema');
 
 // Pencerelerin çağırabildiği araç işlevleri
-const METHODS = new Set(['arm', 'setMode', 'motorTest', 'motorStop', 'calibrate', 'reboot', 'saveRcLimits', 'fetchParams', 'setParam', 'command', 'saveParams', 'exitCli', 'cli', 'takeoff', 'land', 'rtl', 'hold', 'goto', 'setAltitude', 'kill']);
+const METHODS = new Set(['arm', 'setMode', 'motorTest', 'motorStop', 'calibrate', 'reboot', 'saveRcLimits', 'fetchParams', 'setParam', 'command', 'saveParams', 'exitCli', 'cli', 'takeoff', 'land', 'rtl', 'hold', 'goto', 'setAltitude', 'kill', 'replayPlay', 'replaySeek', 'replaySpeed']);
 
-// deps: { getDrone(id), emit(channel, payload), createVehicle(drone) → araç | null, paramDefs(firmware, vehicle) → sözlük | null }
+// deps: { getDrone(id), emit(channel, payload), createVehicle(drone) → araç | null, paramDefs(firmware, vehicle) → sözlük | null,
+//         recorder? (flightlog: state/text/close — telemetri kaydı; kayıt oynatan araçlar kaydedilmez) }
 function createDroneSessions(deps) {
   const sessions = new Map(); // id → { vehicle, drone, recent: [] }
 
@@ -24,14 +25,16 @@ function createDroneSessions(deps) {
     s = { vehicle, drone, recent: [] };
     sessions.set(id, s);
     const safe = (fn) => (...a) => { try { fn(...a); } catch { /* pencere kapanmış olabilir */ } };
-    vehicle.on('state', safe((state) => deps.emit('drone:state', { id, state })));
+    const rec = deps.recorder && !vehicle.isReplay ? deps.recorder : null;
+    s.rec = rec;
+    vehicle.on('state', safe((state) => { if (rec) { try { rec.state(id, drone, state); } catch { /* kayıt isteğe bağlı */ } } deps.emit('drone:state', { id, state }); }));
     vehicle.on('log', safe((entries) => {
       // Sonradan açılan pencere için son kayıtlar saklanır
       s.recent.push(...entries);
       if (s.recent.length > 3000) s.recent.splice(0, s.recent.length - 3000);
       deps.emit('drone:log', { id, entries });
     }));
-    vehicle.on('statustext', safe((m) => deps.emit('drone:statustext', { id, ...m })));
+    vehicle.on('statustext', safe((m) => { if (rec) { try { rec.text(id, m); } catch { /* yok */ } } deps.emit('drone:statustext', { id, ...m }); }));
     vehicle.on('params', safe((p) => deps.emit('drone:params', { id, ...p })));
     vehicle.on('param', safe((p) => deps.emit('drone:param', { id, ...p })));
     vehicle.on('calibration', safe((c) => deps.emit('drone:calibration', { id, ...c })));
@@ -53,6 +56,7 @@ function createDroneSessions(deps) {
     sessions.delete(id);
     try { s.vehicle.disconnect(); } catch { /* yok */ }
     s.vehicle.removeAllListeners();
+    if (s.rec) { try { s.rec.close(id); } catch { /* yok */ } }
     deps.emit('drone:state', { id, state: { connected: false, linked: false } });
   }
 
