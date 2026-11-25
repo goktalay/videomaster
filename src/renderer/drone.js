@@ -1,6 +1,6 @@
 'use strict';
 
-// Dron penceresi: solda modüller (genel bakış, parametreler, motor testi, kalibrasyon), ortada seçili modül,
+// Dron penceresi: solda modüller (genel bakış, ayarlar, parametreler, motor testi, kalibrasyon), ortada seçili modül,
 // altında aranabilir haberleşme günlüğü, sağda temel telemetrinin çizgi grafikleri.
 
 const ID = new URLSearchParams(location.search).get('id');
@@ -15,6 +15,8 @@ let charts = null;
 let log = null;
 
 const BASE_MODULES = [['overview', 'gauge'], ['params', 'rows'], ['motors', 'bolt'], ['calib', 'crosshair']];
+// "Ayarlar" (temel uçuş ayarları, bkz. dronetuning.js) yalnızca MAVLink araçlarında, genel bakıştan hemen sonra
+const withTuning = (list) => [list[0], ['tuning', 'gear'], ...list.slice(1)];
 let MODULES = BASE_MODULES;
 const isBf = () => !!drone && drone.firmware === 'betaflight'; // Betaflight: MSP + komut satırı (CLI)
 const call = (method, ...args) => window.api.droneCall(ID, method, ...args);
@@ -112,6 +114,7 @@ function paintNav() {
 $('#nav').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; moduleId = b.dataset.m; window.api.setSettings({ droneModule: moduleId }); paintNav(); showModule(); };
 
 const modules = {};
+modules.tuning = tuningModule;
 function showModule() {
   const host = $('#module');
   host.innerHTML = '';
@@ -224,12 +227,14 @@ modules.params = {
     P.byName = new Map(P.list.map((p) => [p.name, p]));
     if (!P.list.length && fetchIfEmpty) return this.fetch();
     this.paint();
+    modules.tuning.reloaded();
   },
 
   async fetch() {
     if (!needLink() || P.loading) return;
     P.loading = true; P.progress = { received: 0, total: 0 };
     this.paint();
+    modules.tuning.stateChanged();
     const r = await call('fetchParams');
     P.loading = false; P.progress = null;
     if (!r || !r.ok) toast(t('dr.p.fetchFailed'), { type: 'err', sub: r && r.total ? `${r.received} / ${r.total}` : '' });
@@ -649,9 +654,11 @@ function applyState(next) {
   if (moduleId === 'overview') modules.overview.update();
   else if (moduleId === 'motors') modules.motors.paint();
   else if (moduleId === 'calib' && (CAL.rc || true)) modules.calib.paint();
+  else if (moduleId === 'tuning') modules.tuning.stateChanged();
   // Bağlanınca parametreler bir kez okunur (gövde yapısı ve motor düzeni de bunlardan çıkar)
   if (!isBf() && st.linked && !wasLinked && st.params && !st.params.received && !st.params.loading && !P.loading) {
     P.loading = true; P.progress = { received: 0, total: 0 };
+    modules.tuning.stateChanged();
     call('fetchParams').then(() => { P.loading = false; P.progress = null; modules.params.reload(false); });
   }
 }
@@ -669,12 +676,12 @@ window.api.onDroneParams((m) => {
   if (m.id !== ID) return;
   P.progress = { received: m.received, total: m.total };
   P.loading = !!m.loading && !m.done;
-  if (m.done) modules.params.reload(false); else modules.params.paint();
+  if (m.done) modules.params.reload(false); else { modules.params.paint(); modules.tuning.progress(); }
 });
 window.api.onDroneParam((m) => {
   if (m.id !== ID) return;
   const p = P.byName.get(m.name);
-  if (p && p.value !== m.value) { p.value = m.value; if (!P.edits.has(m.name) && moduleId === 'params') modules.params.refreshRow(m.name); }
+  if (p && p.value !== m.value) { p.value = m.value; if (!P.edits.has(m.name) && moduleId === 'params') modules.params.refreshRow(m.name); modules.tuning.paramChanged(m.name); }
 });
 window.api.onDroneCalibration((m) => { if (m.id === ID) modules.calib.event(m); });
 window.api.onDroneCli((m) => { if (m.id === ID) modules.cli.append(m.text || ''); });
@@ -687,6 +694,7 @@ window.api.onStoreChanged((d) => { const keep = {}; for (const k of ['droneLogOp
   if (!d) return window.close();
   settings = store.settings;
   drone = d;
+  if (!isBf()) MODULES = withTuning(BASE_MODULES);
   if (isBf()) { MODULES = [...BASE_MODULES, ['cli', 'terminal']]; CAL_KINDS = ALL_CAL_KINDS.filter(([k]) => k === 'accel' || k === 'compass'); }
   if (MODULES.some(([m]) => m === settings.droneModule)) moduleId = settings.droneModule;
   charts = buildTelemetryCharts($('#charts'));

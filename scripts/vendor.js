@@ -16,3 +16,13 @@ if (fs.existsSync(mapFrom)) {
   for (const f of ['maplibre-gl-csp.js', 'maplibre-gl-csp-worker.js', 'maplibre-gl.css']) fs.copyFileSync(path.join(mapFrom, f), path.join(mapTo, f));
   console.log('vendor: maplibre-gl → src/vendor/maplibre');
 }
+// 3B küre (uçuş penceresi, isteğe bağlı): CesiumJS hazır derlemesi — yalnız gerekli parçalar
+const csFrom = path.join(__dirname, '..', 'node_modules', 'cesium', 'Build', 'Cesium');
+const csTo = path.join(__dirname, '..', 'src', 'vendor', 'cesium');
+if (fs.existsSync(csFrom)) {
+  fs.rmSync(csTo, { recursive: true, force: true });
+  fs.mkdirSync(csTo, { recursive: true });
+  fs.copyFileSync(path.join(csFrom, 'Cesium.js'), path.join(csTo, 'Cesium.js'));
+  for (const d of ['Assets', 'Workers', 'ThirdParty']) fs.cpSync(path.join(csFrom, d), path.join(csTo, d), { recursive: true });
+  console.log('vendor: cesium → src/vendor/cesium');
+}

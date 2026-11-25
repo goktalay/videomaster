@@ -37,6 +37,27 @@ Parametre açıklamaları ArduPilot'un kendi kaynak kodundan ve PX4'ün yayımla
 (Copter, Plane, Rover, Sub, PX4). Türkçe çeviri Copter, Rover ve Sub için tamdır, Plane için yaklaşık %85'tir; PX4 açıklamaları
 ve çevirisi olmayan metinler özgün haliyle (İngilizce) gösterilir.
 
+## Ayarlar (temel uçuş ayarları)
+
+Dron penceresindeki **Ayarlar** modülü, en çok kullanılan uçuş ayarlarını parametre adlarıyla uğraşmadan, Türkçe açıklamalar ve
+göstergelerle sunar (ArduPilot ve PX4; Betaflight'ta yoktur). Sekiz grup vardır: **Hız**, **Kalkış**, **İniş**, **Eve dönüş**,
+**Güvenlik ve arıza davranışı**, **Coğrafi çit**, **Kumanda hissi** ve **Uçuş kipleri**. ArduCopter'da 75 ayar görünür; araçta
+karşılığı olmayan ayarlar gizlenir.
+
+- Her ayarın kendi kartı vardır: gösterge (hız kadranı, irtifa çubuğu, batarya, süre…), değer, kaydırıcı ve ne işe yaradığını,
+  yükseltince / düşürünce ne olacağını anlatan açıklama.
+- Bir ayar arka planda birden çok parametreyi değiştirebilir. **Değişecek parametreler** listesi hangi parametrenin hangi
+  değerden hangisine geçeceğini ve bağlı değişikliklerin nedenini gösterir (örneğin görev hızını yükseltmek ivmeyi ve gerekiyorsa
+  azami yatış açısını da yükseltir).
+- **Uçuş karakteri** (Sakin / Normal / Hızlı / Çok hızlı) ve **İniş karakteri** (Yumuşak / Normal / Hızlı) hazır takımlardır;
+  hız, ivme ve yatış değerlerini birbirine uyumlu biçimde tek seferde ayarlar.
+- Değişen kartlar işaretlenir; kart başına **Uygula** ya da alttaki **Tümünü uygula** ile araca yazılır. Güvenliği azaltan
+  seçimler (kurma denetimlerini kapatmak, arıza davranışını ya da çiti devre dışı bırakmak gibi) ayrıca onay ister.
+- Üstteki arama kutusu bütün gruplarda arar.
+
+Parametre adları, birimleri ve aralıkları ArduCopter 4.5 ve PX4 1.14'e göre yazılmıştır ve yalnızca depodaki benzetimli
+ArduCopter ile sınanmıştır; başka sürümlerde bir ayarın karşılığı farklıysa Parametreler modülünden denetleyin.
+
 ## Betaflight
 
 Betaflight kartları MSP protokolüyle bağlanır; aynı dron penceresi kullanılır, şu farklarla:
@@ -61,6 +82,11 @@ başlatılana kadar motorların etkinleşmesine izin vermez.
 
 - **3B harita**: dronun konumu ve yönü, uçulan yüksekliğe kadar yükselen iz, kalkış noktası. Uydu görüntüsü / sokak haritası,
   3B eğik bakış ya da üstten bakış, dronu izleme, kalkış noktasına gitme, izi temizleme.
+- **3B küre (Cesium)**: harita araçlarındaki küre düğmesi CesiumJS ile gerçek arazi kabartmalı görünümü açar: dron, uçulan
+  yol (irtifasıyla), yere izdüşüm çizgisi, kalkış noktası, hedef ve görev yolu kürenin üstünde gösterilir; noktaya git ve izleme
+  çalışır. Arazi verisi Cesium ion'dan gelir ve bir **erişim anahtarı** ister; anahtar ilk açılışta sorulur ve yalnızca bu
+  bilgisayardaki ayarlarda saklanır (hesapla eşitlenmez). Anahtarsız açılırsa küre düz araziyle gösterilir. Uydu ve sokak
+  görüntüsü uygulamanın kendi karo önbelleğinden gelir. Cesium ion'un kendi kullanım koşulları ve kotası vardır.
 - **2B harita**: 3B harita (WebGL) bilgisayarda açılamazsa uygulama kendiliğinden sade 2B haritaya geçer; harita araçlarındaki
   düğmeyle elle de geçilebilir. 2B haritada da her şey çalışır: karolar, dron ve yönü, iz, kalkış noktası, hedef, noktaya git.
 - **Yerleşimler**: harita + küçük kamera, kamera + küçük harita, yan yana, yalnız harita, yalnız kamera. Küçük pencereye tıklamak
