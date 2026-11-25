@@ -50,7 +50,7 @@ Desteklenen modeller: **CPDD075CCT**, **Skydroid C10 / C10 Pro, C12, C13, C20**.
 
 Ana ekran **Kameralar**, **Dronlar** ve **Uçuşlar** bölümlerine ayrılır. Dronlar bölümünde uçuş kontrolcüsüne seri port, TCP,
 UDP ya da UDPIN ile bağlanılır (ArduPilot, PX4, SITL): parametre ağacı (Türkçe açıklamalarla), motor testi, kalibrasyonlar,
-telemetri grafikleri ve aranabilir haberleşme günlüğü. Uçuşlar bölümünde dron ve kamera birlikte izlenir: 3B harita, kamera
+telemetri grafikleri ve aranabilir haberleşme günlüğü. Görevler bölümünde harita üzerinde görev planlanır (QGroundControl .plan ve Mission Planner .waypoints uyumlu). Uçuşlar bölümünde dron ve kamera birlikte izlenir: 3B harita, kamera
 yerleşimleri ve HUD. Ayrıntı: [docs/dronlar-ve-ucuslar.md](docs/dronlar-ve-ucuslar.md).
 
 ## Yapay görü
