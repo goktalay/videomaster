@@ -87,6 +87,7 @@ komutlarını verir; üst paneldeki ok bu çubuğu gizler. Paneller tam ekranda 
 | **Noktaya git** | Düğmeye basıp haritada bir noktayı tıklayın (ya da haritaya sağ tıklayın). Araç bulunduğu irtifada o noktaya gider; hedef ve kalan uzaklık gösterilir. |
 | **İrtifa** | Bulunduğu konumda yeni irtifaya çıkar / iner. |
 | **Acil durdur** | Onaydan sonra motorları hemen keser. **Araç havadaysa düşer**; yalnız acil durumda kullanın. |
+| **Ekranı kaydet** | Uçuş penceresinin tamamını (harita, kamera, HUD, paneller) videoya kaydeder; yeniden basınca durur. Dosya kayıt klasöründe uçuşun adıyla açılan klasöre `ekran-TARİH-SAAT.mp4` olarak yazılır. Ses kaydedilmez. |
 
 - Komutlar ArduPilot ve PX4 içindir. Betaflight kumandadan uçurulur; panelde komut görünmez.
 - "Noktaya git" ve "İrtifa" için aracın havada olması gerekir. Araç bir komutu reddederse nedeni (örn. kurma öncesi denetim iletisi) bildirim olarak görünür.

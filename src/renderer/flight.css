@@ -117,3 +117,8 @@
 .op-form { display: grid; gap: 12px; }
 .op-form .op-warn { display: flex; gap: 10px; align-items: flex-start; color: var(--text-2); line-height: 1.5; }
 .op-form .op-warn svg { flex: none; width: 20px; height: 20px; color: #fbbf24; margin-top: 1px; }
+
+.fl-ops .btn.rec svg { color: #fb7185; }
+.fl-ops .btn.rec.recording { background: #e11d48; border-color: #fb7185; color: #fff; font-variant-numeric: tabular-nums; animation: rec-blink 1.6s ease-in-out infinite; }
+.fl-ops .btn.rec.recording svg { color: #fff; }
+@keyframes rec-blink { 50% { box-shadow: 0 0 0 5px rgba(244, 63, 94, .28); } }

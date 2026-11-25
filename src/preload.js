@@ -73,6 +73,9 @@ contextBridge.exposeInMainWorld('api', {
   recReveal: (file) => ipcRenderer.invoke('rec:reveal', file),
   recOpenFile: (file) => ipcRenderer.invoke('rec:openFile', file),
   recOpenDir: (id) => ipcRenderer.invoke('rec:openDir', id),
+  screenRecStart: (opts) => ipcRenderer.invoke('screenrec:start', opts),
+  screenRecChunk: (chunk) => ipcRenderer.send('screenrec:chunk', chunk),
+  screenRecStop: () => ipcRenderer.invoke('screenrec:stop'),
 
   // akış verisi (HEX / paketler)
   tapTail: (id, bytes) => ipcRenderer.invoke('tap:tail', { id, bytes }),

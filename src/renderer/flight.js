@@ -303,7 +303,7 @@
       <span class="sep"></span><select class="input" id="opMode" title="${esc(t('fl.op.mode'))}"></select>
       <span class="sep"></span>${b('goto', 'pin', t('fl.op.goto'))}${b('alt', 'altitude', t('fl.op.alt'))}
       <span class="op-target hidden" id="opTarget"><span></span><button type="button" data-op="clearTarget" title="${esc(t('fl.op.clearTarget'))}">${icon('x')}</button></span>
-      <span class="op-note hidden" id="opNote"></span><span class="sep"></span>${b('kill', 'alert', t('fl.op.kill'), 'kill')}`;
+      <span class="op-note hidden" id="opNote"></span><span class="sep"></span>${b('kill', 'alert', t('fl.op.kill'), 'kill')}<span class="sep keep"></span>${b('screenrec', 'record', t('fl.op.screenrec'), 'rec')}`;
     el('#pickHint').textContent = t('fl.op.pickHint');
   }
 
@@ -379,7 +379,7 @@
       set('alt', !bf && (c.alt || !st.linked), on && c.alt);
       set('kill', !bf, on && !!st.armed);
       q('goto').classList.toggle('on', picking);
-      for (const x of ops.querySelectorAll('.sep')) x.classList.toggle('hidden', bf);
+      for (const x of ops.querySelectorAll('.sep:not(.keep)')) x.classList.toggle('hidden', bf);
       const note = el('#opNote');
       note.textContent = bf && st.linked ? t('fl.op.bfNote') : !st.linked ? t('fl.op.offNote') : '';
       note.classList.toggle('hidden', !note.textContent);
@@ -451,6 +451,7 @@
     const op = b.dataset.op;
     const x = st.telemetry || {};
     if (op === 'clearTarget') { target = null; paintTarget(); return; }
+    if (op === 'screenrec') { toggleScreenRec(); return; }
     if (op === 'arm') {
       if (st.armed) { await run('arm', t('dr.disarm'), () => call('arm', false)); return; }
       if (await inStage(confirmBox(t('dr.arm'), esc(t('dr.armConfirm')), { okText: t('dr.arm'), danger: false }))) await run('arm', t('dr.arm'), () => call('arm', true));
@@ -480,6 +481,51 @@
     }
   });
   let settings0 = {};
+
+  // --- Ekran kaydı: uçuş penceresinin tamamı (harita, kamera, HUD, paneller) video dosyasına yazılır ---
+  let screenRec = null; // { recorder, stream, timer, startedAt }
+  function paintScreenRec() {
+    const b = el('#ops [data-op="screenrec"]');
+    if (!b) return;
+    b.classList.toggle('recording', !!screenRec);
+    const sec = screenRec ? Math.floor((Date.now() - screenRec.startedAt) / 1000) : 0;
+    b.querySelector('span').textContent = screenRec ? `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}` : t('fl.op.screenrec');
+    b.title = t(screenRec ? 'fl.op.screenrecStop' : 'fl.op.tip.screenrec');
+  }
+  async function stopScreenRec() {
+    const r = screenRec;
+    if (!r) return;
+    screenRec = null;
+    clearInterval(r.timer);
+    paintScreenRec();
+    await new Promise((res) => { r.recorder.onstop = res; try { r.recorder.stop(); } catch { res(); } });
+    for (const tr of r.stream.getTracks()) tr.stop();
+    await r.flush;
+    const out = await window.api.screenRecStop();
+    if (out && out.ok) { const el2 = toast(t('rec.saved'), { type: 'ok', sub: out.file, timeout: 9000 }); el2.style.cursor = 'pointer'; el2.onclick = () => window.api.recOpenFile(out.file); } else toast(t('rec.failed'), { type: 'err', sub: out && out.error === 'empty' ? t('rec.empty') : '' });
+  }
+  async function toggleScreenRec() {
+    if (screenRec) { await stopScreenRec(); return; }
+    let stream = null;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: false });
+      const mime = ['video/webm;codecs=h264', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((m) => MediaRecorder.isTypeSupported(m));
+      const started = await window.api.screenRecStart({ name: flight ? flight.name : '', mime });
+      if (!started || !started.ok) throw new Error((started && (started.detail || started.error)) || 'start');
+      const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8000000 });
+      const rec = { recorder, stream, startedAt: Date.now(), flush: Promise.resolve(), timer: setInterval(paintScreenRec, 1000) };
+      recorder.ondataavailable = (ev) => { if (ev.data && ev.data.size) rec.flush = rec.flush.then(() => ev.data.arrayBuffer()).then((buf) => window.api.screenRecChunk(new Uint8Array(buf))).catch(() => {}); };
+      stream.getVideoTracks()[0].addEventListener('ended', () => { if (screenRec === rec) stopScreenRec(); });
+      recorder.start(1000);
+      screenRec = rec;
+      paintScreenRec();
+    } catch (e) {
+      if (stream) for (const tr of stream.getTracks()) tr.stop();
+      window.api.screenRecStop();
+      toast(t('rec.failed'), { type: 'err', sub: String((e && e.message) || e), timeout: 6000 });
+    }
+  }
+  addEventListener('beforeunload', () => { if (screenRec) { try { screenRec.recorder.stop(); } catch { /* yok */ } } });
 
   // --- Başlangıç ---
   (async () => {

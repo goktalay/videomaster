@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, safeStorage, shell, dialog, nativeTheme, protocol, Tray, Menu, nativeImage, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, shell, dialog, nativeTheme, protocol, Tray, Menu, nativeImage, clipboard, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -543,6 +543,7 @@ async function saveThumb(id) {
 }
 
 function registerThumbProtocol() {
+  allowWindowCapture();
   protocol.handle('vdm', async (req) => {
     const u = new URL(req.url);
     // vdm://app/<src altındaki yol>: akış penceresi buradan yüklenir. COOP/COEP başlıkları sayfayı "cross-origin isolated"
@@ -1108,6 +1109,57 @@ ipcMain.handle('flight:delete', (_e, id) => {
   broadcastStore();
 });
 ipcMain.handle('flight:open', (_e, id) => openFlight(id));
+
+// ---- Uçuş penceresinin tamamını videoya kaydetme (harita + kamera + HUD + paneller) ----
+// Pencere kendi görüntüsünü getDisplayMedia ile alır (yalnız uçuş penceresine izin verilir), MediaRecorder parçalarını
+// buraya yollar; kayıt bitince ffmpeg ile yeniden paketlenir (süre ve ileri-geri sarma bilgisi için).
+const screenRecs = new Map(); // webContents kimliği → { raw, out, stream, bytes }
+function allowWindowCapture() {
+  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+    const ok = request.frame && String(request.frame.url || '').startsWith('vdm://app/renderer/flight.html');
+    try { callback(ok ? { video: request.frame } : {}); } catch { /* reddedildi */ }
+  });
+}
+function finishScreenRec(wcId) {
+  const r = screenRecs.get(wcId);
+  if (!r) return Promise.resolve({ ok: false, error: 'not_recording' });
+  screenRecs.delete(wcId);
+  return new Promise((resolve) => {
+    r.stream.end(() => {
+      if (!r.bytes) { fs.rm(r.raw, { force: true }, () => {}); resolve({ ok: false, error: 'empty' }); return; }
+      execFile(ffmpegPath(), ['-hide_banner', '-loglevel', 'error', '-y', '-i', r.raw, '-c', 'copy', r.out], { windowsHide: true, timeout: 300000 }, (err) => {
+        if (err || !fs.existsSync(r.out) || !fs.statSync(r.out).size) { fs.rm(r.out, { force: true }, () => {}); resolve({ ok: true, file: r.raw, bytes: r.bytes }); return; }
+        fs.rm(r.raw, { force: true }, () => {});
+        resolve({ ok: true, file: r.out, bytes: fs.statSync(r.out).size });
+      });
+    });
+  });
+}
+ipcMain.handle('screenrec:start', (e, { name, mime } = {}) => {
+  const wc = e.sender;
+  if (screenRecs.has(wc.id)) return { ok: false, error: 'busy' };
+  try {
+    const dir = path.join(recordRoot(), safeName(name || 'Uçuş'));
+    fs.mkdirSync(dir, { recursive: true });
+    const d = new Date(); const p2 = (n) => String(n).padStart(2, '0');
+    const base = path.join(dir, `ekran-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`);
+    const h264 = /h264|avc1/i.test(String(mime || ''));
+    const rec = { raw: `${base}.kayit.webm`, out: h264 ? `${base}.mp4` : `${base}.webm`, stream: null, bytes: 0 };
+    rec.stream = fs.createWriteStream(rec.raw);
+    rec.stream.on('error', () => {});
+    screenRecs.set(wc.id, rec);
+    wc.once('destroyed', () => { finishScreenRec(wc.id); });
+    return { ok: true, file: rec.out };
+  } catch (err) { return { ok: false, error: 'io', detail: String(err && err.message) }; }
+});
+ipcMain.on('screenrec:chunk', (e, chunk) => {
+  const r = screenRecs.get(e.sender.id);
+  if (!r || !chunk) return;
+  const buf = Buffer.from(chunk.buffer || chunk, chunk.byteOffset || 0, chunk.byteLength);
+  r.bytes += buf.length;
+  r.stream.write(buf);
+});
+ipcMain.handle('screenrec:stop', (e) => finishScreenRec(e.sender.id));
 
 // ---------------------------------------------------------------------------
 // Yapay görü: modeller (indirme, kullanıcı modelleri), kameraya özel ayarlar, ayar dosyası
