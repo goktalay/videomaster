@@ -9,8 +9,8 @@
   const ID = new URLSearchParams(location.search).get('id');
   const $ = (s) => document.querySelector(s);
   const TILES = {
-    sat: { tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], attribution: 'Esri, Maxar, Earthstar Geographics', maxzoom: 19 },
-    street: { tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], attribution: '© OpenStreetMap', maxzoom: 19 },
+    sat: { tiles: ['vdm://tiles/sat/{z}/{x}/{y}'], attribution: 'Esri, Maxar, Earthstar Geographics', maxzoom: 19 },
+    street: { tiles: ['vdm://tiles/street/{z}/{x}/{y}'], attribution: '© OpenStreetMap', maxzoom: 19 },
   };
   const TYPE_ICON = { takeoff: 'takeoff', waypoint: 'pin', spline: 'route', loiterTime: 'clock', loiterTurns: 'refresh', loiterUnlim: 'refresh', loiterAlt: 'altitude', land: 'land', rtl: 'home', vtolTakeoff: 'takeoff', vtolLand: 'land',
     delay: 'clock', speed: 'gauge', yaw: 'refresh', roi: 'eyeTarget', roiNone: 'eyeOff', jump: 'swap', camTrigDist: 'camera', camPhoto: 'camera', camStop: 'camera', videoStart: 'video', videoStop: 'video', gimbal: 'crosshair', servo: 'bolt', relay: 'bolt', gripper: 'lock', changeAlt: 'altitude', landStart: 'land' };
@@ -496,7 +496,6 @@
     settings = store.settings || {};
     drones = store.drones || [];
     style = settings.flightStyle === 'street' ? 'street' : 'sat';
-    if (settings.flightTiles && typeof settings.flightTiles === 'object') for (const k of ['sat', 'street']) if (typeof settings.flightTiles[k] === 'string') TILES[k] = { ...TILES[k], tiles: [settings.flightTiles[k]] };
     doc = { ...MISSION.normalize(m), id: ID };
     themeButton($('#btnTheme'), () => settings);
     initMap();

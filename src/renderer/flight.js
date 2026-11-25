@@ -10,8 +10,8 @@
   const HAS_CAM = !!Q.get('cam');
   const el = (s) => document.querySelector(s);
   const TILES = {
-    sat: { tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], attribution: 'Esri, Maxar, Earthstar Geographics', maxzoom: 19 },
-    street: { tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], attribution: '© OpenStreetMap', maxzoom: 19 },
+    sat: { tiles: ['vdm://tiles/sat/{z}/{x}/{y}'], attribution: 'Esri, Maxar, Earthstar Geographics', maxzoom: 19 },
+    street: { tiles: ['vdm://tiles/street/{z}/{x}/{y}'], attribution: '© OpenStreetMap', maxzoom: 19 },
   };
 
   let flight = null;
@@ -708,8 +708,6 @@
     flight = f;
     drone = f.droneId ? await window.api.getDrone(f.droneId) : null;
     const s = store.settings;
-    // Kendi karo sunucusu (çevrimdışı / kurum içi harita): ayarlardaki flightTiles { sat, street } adresleri varsayılanların yerine geçer
-    if (s.flightTiles && typeof s.flightTiles === 'object') { for (const k of ['sat', 'street']) if (typeof s.flightTiles[k] === 'string') TILES[k] = { ...TILES[k], tiles: [s.flightTiles[k]] }; }
     settings0 = { flightTakeoffAlt: s.flightTakeoffAlt };
     el('#stage').classList.toggle('ops-folded', s.flightOpsFolded === true);
     prefs = { layout: f.layout || 'mapPip', hud: ['transparent', 'instruments', 'compact', 'off'].includes(s.flightHudStyle) ? s.flightHudStyle : s.flightHud === false ? 'off' : 'transparent', follow: s.flightFollow !== false, style: s.flightStyle === 'street' ? 'street' : 'sat', tilt: s.flightTilt !== false, flat: s.flightFlat === true };

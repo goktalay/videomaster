@@ -29,7 +29,7 @@ const ICON = path.join(__dirname, '..', 'build', 'icon.png');
 const userDir = (...p) => path.join(app.getPath('userData'), ...p);
 
 // Kart küçük resimleri: vdm://thumb/<bağlantıId>
-protocol.registerSchemesAsPrivileged([{ scheme: 'vdm', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
+protocol.registerSchemesAsPrivileged([{ scheme: 'vdm', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
 
 // ffmpeg: kurulumla gelen (asar dışına açılmış) ikili; VDM_FFMPEG ile başka bir derleme kullanılabilir
 function ffmpegPath() {
@@ -544,6 +544,18 @@ async function saveThumb(id) {
   } catch { /* küçük resim isteğe bağlı */ }
 }
 
+let tiles = null;
+function tileCache() {
+  if (!tiles) tiles = require('./tiles').createTileCache({ dir: () => userDir('tiles'), fetch: (url) => require('electron').net.fetch(url), custom: () => store.settings.flightTiles });
+  return tiles;
+}
+// Çevrimdışı harita: plan (kaç karo), indirme (ilerleme olayıyla), iptal, önbellek bilgisi ve temizleme
+ipcMain.handle('tiles:plan', (_e, q) => tileCache().plan(q || {}));
+ipcMain.handle('tiles:download', (e, q) => tileCache().download(q || {}, (p) => { try { e.sender.send('tiles:progress', p); } catch { /* pencere kapandı */ } }));
+ipcMain.handle('tiles:cancel', () => tileCache().cancel());
+ipcMain.handle('tiles:stats', () => tileCache().stats());
+ipcMain.handle('tiles:clear', () => tileCache().clear());
+
 function registerThumbProtocol() {
   allowWindowCapture();
   protocol.handle('vdm', async (req) => {
@@ -560,6 +572,15 @@ function registerThumbProtocol() {
           'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp', 'Cross-Origin-Resource-Policy': 'same-origin',
         } });
       } catch { return new Response('not found', { status: 404 }); }
+    }
+    // Harita karoları: disk önbelleğinden, yoksa ağdan (src/tiles.js)
+    if (u.host === 'tiles') {
+      const m = /^\/(sat|street|dem)\/(\d+)\/(\d+)\/(\d+)/.exec(u.pathname);
+      const data = m ? await tileCache().get(m[1], Number(m[2]), Number(m[3]), Number(m[4])).catch(() => null) : null;
+      const headers = { 'Access-Control-Allow-Origin': '*', 'Cross-Origin-Resource-Policy': 'cross-origin' };
+      if (!data) return new Response(null, { status: 404, headers });
+      const jpg = data[0] === 0xff && data[1] === 0xd8;
+      return new Response(data, { status: 200, headers: { ...headers, 'Content-Type': jpg ? 'image/jpeg' : 'image/png', 'Cache-Control': 'max-age=86400' } });
     }
     const id = u.pathname.replace(/^\//, '').replace(/[^a-z0-9]/gi, '');
     if (u.host !== 'thumb' || !id) return new Response('not found', { status: 404 });
