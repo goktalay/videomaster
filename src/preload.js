@@ -117,6 +117,16 @@ contextBridge.exposeInMainWorld('api', {
   deleteFlight: (id) => ipcRenderer.invoke('flight:delete', id),
   openFlight: (id) => ipcRenderer.invoke('flight:open', id),
   onFlightChanged: on('flight:changed'),
+  saveMission: (form) => ipcRenderer.invoke('mission:save', form),
+  getMission: (id) => ipcRenderer.invoke('mission:get', id),
+  openMission: (id) => ipcRenderer.invoke('mission:open', id),
+  duplicateMission: (id) => ipcRenderer.invoke('mission:duplicate', id),
+  deleteMission: (id) => ipcRenderer.invoke('mission:delete', id),
+  exportMission: (opts) => ipcRenderer.invoke('mission:export', opts),
+  importMission: () => ipcRenderer.invoke('mission:import'),
+  missionVehicle: (opts) => ipcRenderer.invoke('mission:vehicle', opts),
+  onMissionChanged: on('mission:changed'),
+  onDroneMission: on('drone:mission'),
 
   // yapay görü
   visionModels: () => ipcRenderer.invoke('vision:models'),

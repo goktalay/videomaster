@@ -6,7 +6,8 @@
 const DRONE = require('./schema');
 
 // Pencerelerin çağırabildiği araç işlevleri
-const METHODS = new Set(['arm', 'setMode', 'motorTest', 'motorStop', 'calibrate', 'reboot', 'saveRcLimits', 'fetchParams', 'setParam', 'command', 'saveParams', 'exitCli', 'cli', 'takeoff', 'land', 'rtl', 'hold', 'goto', 'setAltitude', 'kill', 'replayPlay', 'replaySeek', 'replaySpeed']);
+const METHODS = new Set(['arm', 'setMode', 'motorTest', 'motorStop', 'calibrate', 'reboot', 'saveRcLimits', 'fetchParams', 'setParam', 'command', 'saveParams', 'exitCli', 'cli', 'takeoff', 'land', 'rtl', 'hold', 'goto', 'setAltitude', 'kill', 'replayPlay', 'replaySeek', 'replaySpeed',
+  'uploadMission', 'downloadMission', 'clearMission', 'startMission', 'pauseMission', 'resumeMission', 'setMissionCurrent']);
 
 // deps: { getDrone(id), emit(channel, payload), createVehicle(drone) → araç | null, paramDefs(firmware, vehicle) → sözlük | null,
 //         recorder? (flightlog: state/text/close — telemetri kaydı; kayıt oynatan araçlar kaydedilmez) }
@@ -38,6 +39,7 @@ function createDroneSessions(deps) {
     vehicle.on('params', safe((p) => deps.emit('drone:params', { id, ...p })));
     vehicle.on('param', safe((p) => deps.emit('drone:param', { id, ...p })));
     vehicle.on('calibration', safe((c) => deps.emit('drone:calibration', { id, ...c })));
+    vehicle.on('mission', safe((p) => deps.emit('drone:mission', { id, ...p })));
     vehicle.on('cli', safe((c) => deps.emit('drone:cli', { id, ...c })));
     vehicle.on('error', () => {});
     return s;

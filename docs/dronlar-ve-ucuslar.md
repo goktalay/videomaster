@@ -101,6 +101,60 @@ Bilinmesi gerekenler:
 - Kendi karo sunucunuzu (çevrimdışı ya da kurum içi harita) kullanmak için ayar dosyasına
   `"flightTiles": { "sat": "http://127.0.0.1:8080/sat/{z}/{x}/{y}.png", "street": "…" }` eklenebilir.
 
+## Görevler
+
+**Görevler** bölümünde görev planları oluşturulur ve saklanır (hesapla eşitlenir). Bir görevi çift tıklayınca harita üzerindeki
+görev düzenleyici açılır; çalışma biçimi QGroundControl'ün Plan görünümüne benzer.
+
+**Soldaki araçlar**
+
+| Araç | Ne yapar |
+| --- | --- |
+| Seç / taşı | Öğeleri seçer; noktalar, ev konumu, çit köşeleri ve toplanma noktaları sürüklenerek taşınır. |
+| Nokta ekle | Tıklanan yere görev noktası ekler. Kopter ve uçakta ilk noktadan önce **Kalkış** kendiliğinden eklenir. |
+| İlgi noktası | Kameranın / burnun bakacağı nokta (ROI). |
+| Alan taraması | Çizilen çokgenin içini gidiş-dönüş hatlarla doldurur: irtifa, hat aralığı, hat yönü, dönüş payı, fotoğraf aralığı. |
+| Koridor | Çizilen yol boyunca paralel hatlar: genişlik ve hat aralığı. |
+| Çevre turu | Bir noktanın çevresinde daire: yarıçap, nokta sayısı, yön; isteğe bağlı merkeze bakış (ROI). |
+| Çit alanı / Çit dairesi | Coğrafi çit: "içinde kal" ya da "girme" alanları. |
+| Toplanma noktası | Eve dönüşte kullanılabilecek yedek nokta. |
+| Ev konumu | Planlanan kalkış noktası. |
+| Ölç | Haritada mesafe ölçer. |
+
+Çok noktalı araçlarda noktalar tıklanır; **çift tıklama ya da Enter** bitirir, **Geri** son noktayı siler, **Esc** vazgeçer.
+
+**Sağ panel**: görev ayarları (varsayılan irtifa, seyir hızı, ev konumu), uyarılar, komut ekleme ve öğe listesi. Seçili öğenin komutu,
+konumu, irtifası, irtifa başvurusu (kalkış noktası / deniz seviyesi / arazi) ve komuta özgü değerleri düzenlenir; öğeler yukarı-aşağı
+taşınır, kopyalanır, silinir. Tarama gibi üreteçlerin oluşturduğu noktalar bir grup sayılır ve **Grubu sil** ile birlikte silinir.
+Çit ve toplanma noktalarının ayrı sekmeleri vardır.
+
+**Komutlar**: kalkış, görev noktası, eğri (spline) nokta, süreli / turlu / süresiz bekleme, iniş, eve dönüş, VTOL kalkış ve iniş,
+gecikme, hız ve yön değiştirme, ROI ve ROI iptali, öğeye atlama (tekrarlı), mesafeyle fotoğraf, fotoğraf / video başlat-durdur,
+gimbal yönü, servo, röle, tutucu, irtifa değiştirme, iniş başlangıcı. Liste araç türüne göre (kopter, uçak / VTOL, kara / deniz
+aracı, denizaltı) değişir.
+
+**Ayrıca**: üstte toplam yol, tahmini süre, evden en uzak nokta ve en yüksek irtifa; altta yükseklik profili; geri al / yinele
+(Ctrl+Z / Ctrl+Y); değişiklikler kendiliğinden kaydedilir.
+
+**Dosyalar**: QGroundControl `.plan` ve Mission Planner `.waypoints` dosyaları alınır ve aynı biçimlerde kaydedilir. QGroundControl'ün
+tarama öğeleri içlerindeki noktalara açılarak alınır.
+
+**Araç**: üstten bir dron seçip **Araca yükle**, **Araçtan oku** ya da araçtaki görevi sil. Dron bağlı değilse bu iş için
+bağlanılır ve iş bitince bağlantı bırakılır. Görevle birlikte çit ve toplanma noktaları da aktarılır.
+
+### Uçuş penceresinde görev
+
+Alttaki çubukta **Görev** düğmesi: kayıtlı bir görevi araca yükleme, araçtaki görevi okuma, **görevi başlatma** (onay ister; motorları
+etkinleştirir ve AUTO / Mission kipine geçer), **duraklatma**, **sürdürme**, **görev noktasına gitme** (sıradaki öğeyi değiştirir) ve
+araçtaki görevi silme. Yüklü görev haritada kesikli çizgi ve numaralı noktalarla, sıradaki nokta vurgulu gösterilir; telemetri
+panelinde "sıradaki / toplam" görünür.
+
+### Görevlerde olmayanlar
+
+QGroundControl'deki şu özellikler bu sürümde yoktur: arazi yüksekliği verisi (yükseklik profili arazi çizmez, araziyi izleyen
+tarama yoktur), kamera modeline göre otomatik hat aralığı / örtüşme hesabı, yapı taraması (çok katmanlı), sabit kanat iniş deseni
+üreteci, tarama öğesini sonradan yeniden ayarlama (silip yeniden üretilir), çevrimdışı harita indirme.
+
 ## Uçuş kayıtları ve oynatma
 
 Dron bağlıyken bütün telemetri kendiliğinden kaydedilir: konum, yükseklik, hız, yönelim, batarya, GPS, kumanda ve motor
@@ -137,7 +191,7 @@ node scripts/sim-drone.js --interactive
 
 - Uçuş komutları (kalkış, noktaya git, iniş…) yalnızca depodaki benzetimli araçla sınandı; gerçek ArduPilot / PX4 kartıyla ya da
   gerçek SITL ile denenmedi. İlk denemeyi pervanesiz ya da benzetimde yapın.
-- Görev planlama, coğrafi çit, uçuş günlüğü indirme ve yazılım yükleme bu sürümde yoktur.
+- Araçtaki uçuş günlüğünü (dataflash / ulog) indirme ve yazılım yükleme bu sürümde yoktur.
 - Betaflight sürücüsü sahte bir kartla sınandı; gerçek kartla ve gerçek Betaflight SITL ile denenmedi. Seri portta yeniden başlatma
   sonrası kendiliğinden yeniden bağlanma denenmedi.
 - Haberleşme çekirdeği benzetimle ve bağımsız bir MAVLink kitaplığıyla (pymavlink) sınandı; gerçek ArduPilot/PX4 donanımıyla denenmedi.

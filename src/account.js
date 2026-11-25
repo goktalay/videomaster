@@ -18,6 +18,7 @@ const os = require('os');
 const crypto = require('crypto');
 const SCHEMA = require('./schema');
 const DRONE = require('./drone/schema');
+const MISSION = require('./drone/mission');
 
 const APP_API = '/api/vm';       // Mastertool sunucusundaki uygulama öneki (Convert Master: /api/cv)
 const APP_CODE = 'vm';           // hesap sayfalarına geçilen uygulama kodu
@@ -386,6 +387,7 @@ function createAccount(deps) {
     for (const f of st.folders) out.set(f.id, { kind: 'folder', data: { name: f.name, parentId: f.parentId || null } });
     for (const d of st.drones || []) { const data = {}; for (const k of DRONE.KEYS) data[k] = d[k] ?? null; out.set(d.id, { kind: 'drone', data }); }
     for (const f of st.flights || []) { const data = {}; for (const k of DRONE.FLIGHT_KEYS) data[k] = f[k] ?? null; out.set(f.id, { kind: 'flight', data }); }
+    for (const m of st.missions || []) { const data = {}; for (const k of MISSION.KEYS) data[k] = m[k] ?? null; out.set(m.id, { kind: 'mission', data }); }
     const settings = {};
     for (const k of SETTINGS_FIELDS) settings[k] = st.settings[k] ?? null;
     out.set(SETTINGS_ID, { kind: 'settings', data: settings });
@@ -461,6 +463,7 @@ function createAccount(deps) {
     });
     const drones = live.filter((x) => x.kind === 'drone').map((x) => ({ ...DRONE.normalize(x.data), id: x.id, createdAt: x.data.createdAt || Date.now() }));
     const flights = live.filter((x) => x.kind === 'flight').map((x) => ({ ...DRONE.normalizeFlight(x.data), id: x.id, createdAt: x.data.createdAt || Date.now() }));
+    const missions = live.filter((x) => x.kind === 'mission').map((x) => ({ ...MISSION.normalize(x.data), id: x.id, createdAt: x.data.createdAt || Date.now() }));
     const s = live.find((x) => x.kind === 'settings');
     const settings = {};
     if (s) for (const k of SETTINGS_FIELDS) if (k in s.data) settings[k] = s.data[k];
@@ -469,7 +472,7 @@ function createAccount(deps) {
     for (const it of items) {
       m[it.id] = { kind: it.kind, hash: null, updated_at: it.updated_at, rev: it.rev || 0, device: it.device, deleted: !!it.deleted };
     }
-    deps.replaceLibrary({ folders, connections, drones, flights, settings, syncMeta: m });
+    deps.replaceLibrary({ folders, connections, drones, flights, missions, settings, syncMeta: m });
     // Uygulanan verinin özetini kaydet ki yerel değişiklik sanılmasın
     const cur = currentData();
     for (const [id, x] of Object.entries(m)) if (!x.deleted && cur.has(id)) x.hash = hashOf(cur.get(id).data);

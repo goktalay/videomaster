@@ -168,6 +168,9 @@
       map.addSource('target', { type: 'geojson', data: empty });
       map.addLayer({ id: 'targetLine', type: 'line', source: 'target', filter: ['==', ['geometry-type'], 'LineString'], paint: { 'line-color': '#a78bfa', 'line-width': 2, 'line-dasharray': [2, 2] } });
       map.addLayer({ id: 'target', type: 'circle', source: 'target', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': 8, 'circle-color': '#a78bfa', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2.5 } });
+      map.addSource('mission', { type: 'geojson', data: empty });
+      map.addLayer({ id: 'mission', type: 'line', source: 'mission', paint: { 'line-color': '#f5d0fe', 'line-width': 2.4, 'line-dasharray': [3, 2] } });
+      missionKey = '';
       map.addLayer({ id: 'home', type: 'circle', source: 'home', paint: { 'circle-radius': 7, 'circle-color': '#34d399', 'circle-stroke-color': '#06121c', 'circle-stroke-width': 2 } });
       const m = document.createElement('div');
       m.className = 'fl-marker';
@@ -231,6 +234,7 @@
       paintTrack(false);
     }
     paintTarget();
+    paintMission();
     if (mapReady && (x.homeLat || x.homeLon)) map.getSource('home').setData({ type: 'Feature', geometry: { type: 'Point', coordinates: [x.homeLon, x.homeLat] } });
   }
 
@@ -301,7 +305,7 @@
     const b = (id, ic, label, cls = '') => `<button class="btn ${cls}" data-op="${id}" title="${esc(tOpt(`fl.op.tip.${id}`, label))}">${icon(ic)}<span>${esc(label)}</span></button>`;
     el('#ops').innerHTML = `${b('arm', 'power', t('dr.arm'))}${b('takeoff', 'takeoff', t('fl.op.takeoff'), 'go')}${b('land', 'land', t('fl.op.land'))}${b('rtl', 'home', t('fl.op.rtl'))}${b('hold', 'pause', t('fl.op.hold'))}
       <span class="sep"></span><select class="input" id="opMode" title="${esc(t('fl.op.mode'))}"></select>
-      <span class="sep"></span>${b('goto', 'pin', t('fl.op.goto'))}${b('alt', 'altitude', t('fl.op.alt'))}
+      <span class="sep"></span>${b('mission', 'route', t('ms.tab.mission'))}${b('goto', 'pin', t('fl.op.goto'))}${b('alt', 'altitude', t('fl.op.alt'))}
       <span class="op-target hidden" id="opTarget"><span></span><button type="button" data-op="clearTarget" title="${esc(t('fl.op.clearTarget'))}">${icon('x')}</button></span>
       <span class="op-note hidden" id="opNote"></span><span class="sep"></span>${b('kill', 'alert', t('fl.op.kill'), 'kill')}<span class="sep keep"></span>${b('screenrec', 'record', t('fl.op.screenrec'), 'rec')}`;
     el('#pickHint').textContent = t('fl.op.pickHint');
@@ -314,7 +318,7 @@
     const box = (id, label, unit = '', extra = '') => `<div class="tm" data-tm="${id}"><label>${esc(label)}</label><div><b>—</b>${unit ? `<small>${esc(unit)}</small>` : '<small></small>'}</div>${extra}</div>`;
     el('#tm').innerHTML = `<div class="tm-mode off" id="tmMode"><b>—</b><span><i></i><em style="font-style:normal"></em></span></div>
       ${box('alt', t('tm.altRel'), 'm')}${box('spd', t('fl.tm.speed'), 'm/s')}${box('climb', t('tm.climb'), 'm/s')}${box('hdg', t('tm.heading'), '°')}${box('home', t('fl.tm.home'), 'm')}
-      ${box('batt', t('fl.tm.batt'), 'V', '<span class="bar"><i></i></span>')}${box('gps', 'GPS')}${box('time', t('fl.tm.time'))}
+      ${box('batt', t('fl.tm.batt'), 'V', '<span class="bar"><i></i></span>')}${box('gps', 'GPS')}${box('time', t('fl.tm.time'))}${box('wp', t('ms.tab.mission'))}
       <button type="button" class="tm-fold" id="tmFold" title="${esc(t('fl.tm.fold'))}">${icon('chevronDown')}</button>`;
     el('#tmFold').onclick = () => { const f = !el('#stage').classList.contains('ops-folded'); el('#stage').classList.toggle('ops-folded', f); window.api.setSettings({ flightOpsFolded: f }); };
     const ro = new ResizeObserver(() => { const stg = el('#stage').style; stg.setProperty('--deck-h', `${el('#deck').offsetHeight}px`); stg.setProperty('--dock-h', `${el('#dock').offsetHeight}px`); });
@@ -352,6 +356,9 @@
     if (live && st.armed && !armedAt) armedAt = Date.now();
     if ((!live || !st.armed) && armedAt) { flownMs += Date.now() - armedAt; armedAt = 0; }
     const sec = Math.floor((flownMs + (armedAt ? Date.now() - armedAt : 0)) / 1000);
+    const ms = st.mission || {};
+    const wp = set('wp', live && ms.loaded ? `${ms.current >= 0 ? ms.current + 1 : '—'}/${ms.count}` : '—');
+    wp.classList.toggle('hidden', !(live && ms.loaded));
     set('time', `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`);
   }
 
@@ -410,6 +417,7 @@
       set('rtl', !bf, on);
       set('hold', !bf, on);
       set('goto', !bf, on);
+      set('mission', !bf, on);
       set('alt', !bf && (c.alt || !st.linked), on && c.alt);
       set('kill', !bf, on && !!st.armed);
       q('goto').classList.toggle('on', picking);
@@ -486,6 +494,7 @@
     const x = st.telemetry || {};
     if (op === 'clearTarget') { target = null; paintTarget(); return; }
     if (op === 'screenrec') { toggleScreenRec(); return; }
+    if (op === 'mission') { missionMenu(b); return; }
     if (op === 'arm') {
       if (st.armed) { await run('arm', t('dr.disarm'), () => call('arm', false)); return; }
       if (await inStage(confirmBox(t('dr.arm'), esc(t('dr.armConfirm')), { okText: t('dr.arm'), danger: false }))) await run('arm', t('dr.arm'), () => call('arm', true));
@@ -515,6 +524,88 @@
     }
   });
   let settings0 = {};
+
+  // --- Görev: yükleme, başlatma / duraklatma / sürdürme, görev noktasına gitme; yüklü görev haritada gösterilir ---
+  let missionKey = '';
+  let missionMarkers = [];
+  function paintMission() {
+    if (!mapReady) return;
+    const ms = st.linked && st.mission && st.mission.loaded ? st.mission : null;
+    const key = ms ? `${ms.path.length}|${ms.current}|${ms.path.map((q) => `${q.lat},${q.lon}`).join(';')}` : '';
+    if (key === missionKey) return;
+    missionKey = key;
+    for (const mk of missionMarkers) mk.remove();
+    missionMarkers = [];
+    const pts = ms ? ms.path.filter((q) => q.type !== 'roi') : [];
+    map.getSource('mission').setData({ type: 'FeatureCollection', features: pts.length > 1 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: pts.map((q) => [q.lon, q.lat]) } }] : [] });
+    if (!ms) return;
+    // Çok noktalı görevlerde (tarama) yalnız aralıklı noktalar ve etkin nokta işaretlenir
+    const stepN = Math.max(1, Math.ceil(ms.path.length / 150));
+    ms.path.forEach((q, i) => {
+      if (q.index !== ms.current && i % stepN && i !== ms.path.length - 1) return;
+      const m = document.createElement('div');
+      m.className = `fl-wp ${q.index === ms.current ? 'cur' : ''} ${q.type === 'roi' ? 'roi' : ''}`;
+      m.textContent = String(q.index + 1);
+      m.title = `${q.index + 1}. ${t(`ms.t.${q.type}`)} · ${q.alt} m`;
+      missionMarkers.push((flatMode ? new FlatMarker({ element: m }) : new maplibregl.Marker({ element: m })).setLngLat([q.lon, q.lat]).addTo(map));
+    });
+  }
+  function missionMenu(btn) {
+    const r = btn.getBoundingClientRect();
+    const ms = st.mission || {};
+    const auto = /^(AUTO|Mission)$/i.test(st.mode || '');
+    contextMenu(r.left, r.top - 8, [
+      { label: t('flm.load'), icon: 'upload', action: missionLoad },
+      { label: t('flm.read'), icon: 'download', action: () => run('mission', t('flm.read'), () => call('downloadMission')) },
+      '-',
+      { label: t('flm.start'), icon: 'play', disabled: !ms.loaded, action: async () => { if (await inStage(confirmBox(t('flm.start'), esc(t('flm.startConfirm', { n: ms.count })), { okText: t('flm.start'), danger: false }))) run('mission', t('flm.start'), () => call('startMission')); } },
+      { label: t('flm.pause'), icon: 'pause', disabled: !auto, action: () => run('mission', t('flm.pause'), () => call('pauseMission')) },
+      { label: t('flm.resume'), icon: 'arrowRight', disabled: !ms.loaded || auto || !st.armed, action: () => run('mission', t('flm.resume'), () => call('resumeMission')) },
+      { label: t('flm.jump'), icon: 'pin', disabled: !ms.loaded || !ms.path.length, action: missionJump },
+      '-',
+      { label: t('ms.clearVehicle'), icon: 'trash', danger: true, disabled: !!st.armed, action: async () => { if (await inStage(confirmBox(t('ms.clearVehicle'), esc(t('ms.clearVehicleConfirm')), { okText: t('ms.clearVehicle') }))) run('mission', t('ms.clearVehicle'), () => call('clearMission')); } },
+    ]);
+    // Menü yukarı doğru açılır; tam ekranda tam ekrandaki öğenin içine alınır
+    const menu = document.querySelector('.ctx');
+    if (menu) { if (document.fullscreenElement) document.fullscreenElement.appendChild(menu); menu.style.top = `${Math.max(6, r.top - menu.offsetHeight - 8)}px`; }
+  }
+  async function missionLoad() {
+    const store = await window.api.getStore();
+    const list = (store.missions || []).slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    const body = h(`<div class="dl-list">${list.length ? list.map((m) => `<div class="dl-row" data-id="${esc(m.id)}"><div class="dl-main"><div class="dl-dur">${icon('route')}${esc(m.name)}</div><div class="dl-facts"><span>${esc(t('ms.cardSub', { n: m.count, dist: m.distance >= 1000 ? `${(m.distance / 1000).toFixed(2)} km` : `${m.distance} m`, time: clock((m.time || 0) * 1000) }))}</span>${m.fence ? `<span>${esc(t('ms.fence'))}</span>` : ''}${m.rally ? `<span>${esc(t('ms.rally'))}</span>` : ''}</div></div><button class="btn sm primary" data-up>${icon('upload')}${esc(t('ms.upload'))}</button></div>`).join('') : `<div class="empty-note">${esc(t('flm.none'))}</div>`}</div>`);
+    let closeFn = null;
+    body.addEventListener('click', async (e) => {
+      const row = e.target.closest('[data-up]') && e.target.closest('.dl-row');
+      if (!row) return;
+      const doc = await window.api.getMission(row.dataset.id);
+      if (closeFn) closeFn(null);
+      if (!doc) return;
+      const r = await run('mission', `${t('ms.upload')}: ${doc.name}`, () => call('uploadMission', doc));
+      if (r && r.ok && mapReady && st.mission && st.mission.path.length) { prefs.follow = false; paintTools(); const pts = st.mission.path.map((q) => [q.lon, q.lat]); if (hasPos()) pts.push([st.telemetry.lon, st.telemetry.lat]); fitTo(pts); }
+    });
+    inStage(openModal({ title: t('flm.load'), iconName: 'route', width: 600, body, buttons: [{ label: t('common.close'), value: null }], onMount: (_m, close) => { closeFn = close; } }));
+  }
+  function fitTo(pts) {
+    if (!pts.length) return;
+    if (flatMode) { map.fitBounds(pts, 140); return; }
+    let a = Infinity; let b = -Infinity; let c = Infinity; let d = -Infinity;
+    for (const [lo, la] of pts) { a = Math.min(a, lo); b = Math.max(b, lo); c = Math.min(c, la); d = Math.max(d, la); }
+    try { map.fitBounds([[a, c], [b, d]], { padding: 140, maxZoom: 17, duration: 600 }); } catch { /* geçersiz sınır */ }
+  }
+  async function missionJump() {
+    const ms = st.mission || { path: [] };
+    const body = h(`<div class="dl-list">${ms.path.map((q) => `<div class="dl-row" data-i="${q.index}"><div class="dl-when"><b>${q.index + 1}</b></div><div class="dl-main"><div class="dl-dur">${esc(t(`ms.t.${q.type}`))}</div><div class="dl-facts"><span>${q.alt} m</span><span>${q.lat.toFixed(5)}, ${q.lon.toFixed(5)}</span></div></div><button class="btn sm primary" data-go>${icon('arrowRight')}${esc(t('flm.go'))}</button></div>`).join('')}</div>`);
+    let closeFn = null;
+    body.addEventListener('click', (e) => {
+      const row = e.target.closest('[data-go]') && e.target.closest('.dl-row');
+      if (!row) return;
+      const i = Number(row.dataset.i);
+      if (closeFn) closeFn(null);
+      run('mission', t('flm.jumped', { n: i + 1 }), () => call('setMissionCurrent', i));
+    });
+    inStage(openModal({ title: t('flm.jump'), iconName: 'pin', width: 520, body, buttons: [{ label: t('common.close'), value: null }], onMount: (_m, close) => { closeFn = close; } }));
+  }
+  window.api.onDroneMission((m) => { if (drone && m.id === drone.id && m.total) { const b = el('#ops [data-op="mission"] span'); if (b) b.textContent = m.done >= m.total ? t('ms.tab.mission') : `${Math.round((m.done / m.total) * 100)}%`; } });
 
   // --- Ekran kaydı: uçuş penceresinin tamamı (harita, kamera, HUD, paneller) video dosyasına yazılır ---
   let screenRec = null; // { recorder, stream, timer, startedAt }

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: vdm: https: http://127.0.0.1:* http://localhost:*; connect-src 'self' https: http://127.0.0.1:* http://localhost:* data: blob:">
+  <title>Video Master</title>
+  <link rel="stylesheet" href="common.css">
+  <link rel="stylesheet" href="mastertool.css">
+  <link rel="stylesheet" href="form.css">
+  <link rel="stylesheet" href="stream.css">
+  <link rel="stylesheet" href="viewer.css">
+  <link rel="stylesheet" href="drone.css">
+  <link rel="stylesheet" href="flight.css">
+  <link rel="stylesheet" href="mission.css">
+</head>
+<body>
+  <div class="vw ms">
+    <header class="vw-top">
+      <div class="vw-title"><span class="vw-ico" id="msIcon"></span>
+        <div><input class="ms-name" id="msName" maxlength="120" spellcheck="false"><div class="vw-url" id="msSub"></div></div></div>
+      <select class="input ms-sel" id="msVehicle"></select>
+      <button class="icon-btn" id="btnUndo"></button>
+      <button class="icon-btn" id="btnRedo"></button>
+      <span style="flex:1"></span>
+      <button class="btn ghost" id="btnImport"></button>
+      <button class="btn ghost" id="btnExportPlan"></button>
+      <button class="btn ghost" id="btnExportWpl"></button>
+      <span class="sep"></span>
+      <select class="input ms-sel" id="msDrone"></select>
+      <button class="btn primary" id="btnUpload"></button>
+      <button class="btn" id="btnDownload"></button>
+      <button class="btn ghost danger" id="btnClearVehicle"></button>
+      <button class="icon-btn" id="btnTheme"></button>
+    </header>
+    <div class="vw-main">
+      <div class="vw-left">
+        <div class="ms-stage" id="stage">
+          <div id="map"></div>
+          <div class="fl-deck ms-stats" id="stats"></div>
+          <div class="ms-tools" id="tools"></div>
+          <div class="fl-map-tools ms-maptools" id="mapTools"></div>
+          <div class="fl-pick hidden" id="hint"></div>
+          <div class="ms-coord" id="coord"></div>
+        </div>
+        <div class="ms-profile" id="profileBox"><div class="ms-profile-head"><span id="profileTitle"></span><span style="flex:1"></span><span id="profileInfo"></span></div><canvas id="profile"></canvas></div>
+      </div>
+      <aside class="vw-panel ms-panel" id="panel">
+        <div class="seg panel-tabs" id="tabs"></div>
+        <div class="panel-body" id="panelBody"></div>
+      </aside>
+    </div>
+  </div>
+
+  <script src="../i18n/tr.js"></script>
+  <script src="../i18n/en.js"></script>
+  <script src="../i18n/fr.js"></script>
+  <script src="../i18n/de.js"></script>
+  <script src="../i18n/es.js"></script>
+  <script src="../i18n/ar.js"></script>
+  <script src="../i18n/zh.js"></script>
+  <script src="../i18n/ru.js"></script>
+  <script src="../i18n.js"></script>
+  <script src="../drone/schema.js"></script>
+  <script src="../drone/mission.js"></script>
+  <script src="ui.js"></script>
+  <script src="settings.js"></script>
+  <script src="map2d.js"></script>
+  <script src="mission.js"></script>
+</body>
+</html>

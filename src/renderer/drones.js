@@ -196,6 +196,44 @@ function droneGlyph() {
     <circle cx="34" cy="23" r="13"/><circle cx="86" cy="23" r="13"/><circle cx="34" cy="57" r="13"/><circle cx="86" cy="57" r="13"/></svg>`;
 }
 
+// --- Görevler -----------------------------------------------------------------------------------
+const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m || 0)} m`);
+// Kart resmi: görev yolunun küçük çizimi
+function missionArt(pts) {
+  if (!pts || pts.length < 2) return `<svg viewBox="0 0 120 80" class="ms-art">${''}<path d="M20 60 L45 25 L75 50 L100 20" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4" opacity=".35"/></svg>`;
+  let a = Infinity; let b = -Infinity; let c = Infinity; let d = -Infinity;
+  for (const [la, lo] of pts) { a = Math.min(a, la); b = Math.max(b, la); c = Math.min(c, lo); d = Math.max(d, lo); }
+  const k = Math.cos(((a + b) / 2) * Math.PI / 180);
+  const w = Math.max((d - c) * k, 1e-9); const hh = Math.max(b - a, 1e-9);
+  const sc = Math.min(100 / w, 60 / hh);
+  const xy = pts.map(([la, lo]) => [60 + ((lo - (c + d) / 2) * k) * sc, 40 - (la - (a + b) / 2) * sc]);
+  return `<svg viewBox="0 0 120 80" class="ms-art"><path d="${xy.map((q, i) => `${i ? 'L' : 'M'}${q[0].toFixed(1)} ${q[1].toFixed(1)}`).join(' ')}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>${xy.map((q, i) => `<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="${i === 0 ? 3.4 : 2.2}" fill="${i === 0 ? '#34d399' : 'currentColor'}"/>`).join('')}</svg>`;
+}
+async function newMission() {
+  const name = await prompt(t('ms.newTitle'), { label: t('ms.name'), value: t('ms.defaultName'), okText: t('common.create'), iconName: 'route' });
+  if (!name) return;
+  const r = await window.api.saveMission({ name });
+  if (r && r.ok) window.api.openMission(r.id);
+}
+function missionCard(m) {
+  const el = h(`<div class="card drone-card mission-card" data-id="${esc(m.id)}" style="--c:#a78bfa">
+    <div class="drone-art">${missionArt(m.preview)}<div class="quick"><button class="icon-btn" data-a="open" title="${esc(t('common.open'))}">${icon('expand')}</button></div></div>
+    <div class="conn-body"><div class="card-title">${esc(m.name)}</div><div class="card-sub">${esc(t('ms.cardSub', { n: m.count, dist: fmtDist(m.distance), time: fmtDur((m.time || 0) * 1000) }))}</div>
+      <div class="card-foot"><span class="tag proto-tag">${icon('route')}${esc(t(`ms.v.${m.vehicle}`))}</span>${m.fence ? `<span class="tag">${esc(t('ms.fence'))}</span>` : ''}${m.rally ? `<span class="tag">${esc(t('ms.rally'))}</span>` : ''}</div></div></div>`);
+  el.ondblclick = () => window.api.openMission(m.id);
+  el.querySelector('[data-a="open"]').onclick = (e) => { e.stopPropagation(); window.api.openMission(m.id); };
+  el.oncontextmenu = (e) => {
+    e.preventDefault();
+    contextMenu(e.clientX, e.clientY, [
+      { label: t('common.open'), icon: 'expand', action: () => window.api.openMission(m.id) },
+      { label: t('app.duplicate'), icon: 'copy', action: () => window.api.duplicateMission(m.id) },
+      '-',
+      { label: t('common.delete'), icon: 'trash', danger: true, action: async () => { if (await confirmBox(t('common.delete'), t('ms.deleteConfirm', { name: esc(m.name) }))) window.api.deleteMission(m.id); } },
+    ]);
+  };
+  return el;
+}
+
 // Bölüm ızgarası: grid öğesine dron ya da uçuş kartlarını çizer
 function renderSection(grid, section, data, query) {
   grid.innerHTML = '';
@@ -206,6 +244,11 @@ function renderSection(grid, section, data, query) {
     grid.appendChild(h(`<div class="section-title">${esc(t('sec.drones'))}${list.length ? `<span class="hint">${esc(t('dr.dblHint'))}</span>` : `<span class="hint">${esc(t('dr.emptyHint'))}</span>`}</div>`));
     for (const d of list) grid.appendChild(droneCard(d, data));
     if (!query) add(t('dr.newTitle'), () => editDrone(null));
+  } else if (section === 'missions') {
+    const list = (data.missions || []).filter((m) => match(m.name, m.vehicle)).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    grid.appendChild(h(`<div class="section-title">${esc(t('sec.missions'))}${list.length ? `<span class="hint">${esc(t('ms.dblHint'))}</span>` : `<span class="hint">${esc(t('ms.emptyHint'))}</span>`}</div>`));
+    for (const m of list) grid.appendChild(missionCard(m));
+    if (!query) add(t('ms.newTitle'), () => newMission());
   } else {
     const list = data.flights.filter((f) => match(f.name, (data.drones.find((d) => d.id === f.droneId) || {}).name)).sort((a, b) => b.createdAt - a.createdAt);
     grid.appendChild(h(`<div class="section-title">${esc(t('sec.flights'))}${list.length ? `<span class="hint">${esc(t('fl.dblHint'))}</span>` : `<span class="hint">${esc(t('fl.emptyHint'))}</span>`}</div>`));

@@ -2,7 +2,7 @@
 
 // Ana pencere: bağlantı kartları (kart üstünde oynatma), klasörler, Yeni (bağlantı formu), ayarlar
 
-let data = { folders: [], connections: [], drones: [], flights: [], settings: {} };
+let data = { folders: [], connections: [], drones: [], flights: [], missions: [], settings: {} };
 let currentFolder = null;
 let query = '';
 let selectedId = null;
@@ -37,13 +37,14 @@ let section = 'cameras';
 function newItem() {
   if (section === 'drones') return editDrone(null);
   if (section === 'flights') return editFlight(null, data).then((id) => { if (id) window.api.openFlight(id); });
+  if (section === 'missions') return newMission();
   return newConnection();
 }
 function paintSections() {
-  $('#sections').innerHTML = [['cameras', 'video'], ['drones', 'upload'], ['flights', 'globe']].map(([s, ic]) => `<button type="button" data-s="${s}" class="${section === s ? 'on' : ''}">${icon(ic)}${esc(t(`sec.${s}`))}</button>`).join('');
+  $('#sections').innerHTML = [['cameras', 'video'], ['drones', 'upload'], ['missions', 'route'], ['flights', 'globe']].map(([s, ic]) => `<button type="button" data-s="${s}" class="${section === s ? 'on' : ''}">${icon(ic)}${esc(t(`sec.${s}`))}</button>`).join('');
   $('#btnNewFolder').classList.toggle('hidden', section !== 'cameras');
   $('#crumbs').classList.toggle('hidden', section !== 'cameras');
-  $('#btnNew').title = `${section === 'drones' ? t('dr.newTitle') : section === 'flights' ? t('fl.newTitle') : t('app.newConnection')} (Ctrl+N)`;
+  $('#btnNew').title = `${section === 'drones' ? t('dr.newTitle') : section === 'flights' ? t('fl.newTitle') : section === 'missions' ? t('ms.newTitle') : t('app.newConnection')} (Ctrl+N)`;
 }
 $('#sections').onclick = (e) => {
   const b = e.target.closest('button');
@@ -168,7 +169,7 @@ window.api.onUpdateAvailable(({ version }) => {
 window.api.onLibraryBackup((file) => toast(t('acct.backupNotice'), { sub: file, timeout: 12000 }));
 Promise.all([window.api.getStore(), window.api.streamStates(), window.api.droneBriefs()]).then(([d, list, briefs]) => {
   data = d;
-  if (['drones', 'flights'].includes(d.settings.section)) section = d.settings.section;
+  if (['drones', 'flights', 'missions'].includes(d.settings.section)) section = d.settings.section;
   for (const b of briefs) droneBriefs.set(b.id, b);
   for (const st of list) states.set(st.id, st);
   render();
@@ -207,6 +208,7 @@ function updateSelectionUI() {
 function paintStats() {
   if (section === 'drones') { $('#stats').textContent = t('dr.stats', { n: data.drones.length }); return; }
   if (section === 'flights') { $('#stats').textContent = t('fl.stats', { n: data.flights.length }); return; }
+  if (section === 'missions') { $('#stats').textContent = t('ms.stats', { n: (data.missions || []).length }); return; }
   const n = data.connections.length;
   const live = [...states.values()].filter((s) => s.running).length;
   $('#stats').textContent = n ? t('app.stats', { c: n, f: data.folders.length }) + (live ? ` · ${t('app.liveCount', { n: live })}` : '') : t('app.welcome');

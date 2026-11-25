@@ -56,6 +56,7 @@ const defaultStore = () => ({
   folders: [],      // { id, name, parentId }
   drones: [],       // { id, name, firmware, linkType, ... } (src/drone/schema.js)
   flights: [],      // { id, name, droneId, cameraId, layout }
+  missions: [],     // görev planları (src/drone/mission.js)
   connections: [],  // bağlantı tanımları (senkronlanır); şifreler DPAPI ile şifreli tutulur
   local: {},        // cihaza özgü: bağlantıId -> { info }
   syncMeta: {},     // senkron: öğe id -> { kind, hash, updated_at, rev, device, deleted }
@@ -152,7 +153,7 @@ function summarize(info) {
 }
 
 function publicStore() {
-  return { folders: store.folders, settings: store.settings, connections: store.connections.map(publicConn), drones: store.drones, flights: store.flights };
+  return { folders: store.folders, settings: store.settings, connections: store.connections.map(publicConn), drones: store.drones, flights: store.flights, missions: (store.missions || []).map(missionBrief) };
 }
 
 function broadcast(channel, data) {
@@ -183,9 +184,10 @@ function initAccount() {
     encrypt,
     decrypt,
     // Senkron katmanı bağlantıları şifreleri çözülmüş görür (blob uçtan uca şifrelenir)
-    getStore: () => ({ folders: store.folders, settings: store.settings, syncMeta: store.syncMeta, connections: store.connections.map(plainConn), drones: store.drones, flights: store.flights }),
-    replaceLibrary: ({ folders, connections, drones, flights, settings, syncMeta }) => {
+    getStore: () => ({ folders: store.folders, settings: store.settings, syncMeta: store.syncMeta, connections: store.connections.map(plainConn), drones: store.drones, flights: store.flights, missions: store.missions || [] }),
+    replaceLibrary: ({ folders, connections, drones, flights, missions, settings, syncMeta }) => {
       store.drones = drones || [];
+      store.missions = missions || [];
       store.flights = flights || [];
       const prevLang = currentLang();
       const before = new Map(store.connections.map((c) => [c.id, JSON.stringify(plainConn(c))]));
@@ -216,7 +218,7 @@ function initAccount() {
         file = userDir(`store-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
         fs.writeFileSync(file, JSON.stringify(store, null, 2), 'utf8');
       }
-      Object.assign(store, { folders: [], connections: [], drones: [], flights: [], local: {}, syncMeta: {} });
+      Object.assign(store, { folders: [], connections: [], drones: [], flights: [], missions: [], local: {}, syncMeta: {} });
       writeStore();
       return file;
     },
@@ -939,6 +941,7 @@ ipcMain.handle('tap:save', async (event, { id, base, length }) => {
 // Dronlar ve uçuşlar: kayıtlar, pencereler, araç oturumları (src/drone)
 // ---------------------------------------------------------------------------
 const droneWindows = new Map();  // dronId → pencere
+const missionWindows = new Map(); // görevId → pencere
 const flightWindows = new Map(); // uçuşId → pencere
 // Kayıt oynatma: geçici (saklanmayan) dron + uçuş çifti; kimlik "replay-…"
 const replays = new Map(); // kimlik → { drone, flight, log }
@@ -1120,6 +1123,89 @@ ipcMain.handle('flight:delete', (_e, id) => {
   broadcastStore();
 });
 ipcMain.handle('flight:open', (_e, id) => openFlight(id));
+
+// ---- Görevler: plan kayıtları, düzenleyici penceresi, dosya içe/dışa aktarma, araca yükleme / araçtan okuma ----
+const MISSION = require('./drone/mission');
+const getMission = (id) => (store.missions || []).find((m) => m.id === id) || null;
+// Kartlar için özet (liste yayınında öğelerin tamamı gönderilmez)
+function missionBrief(m) {
+  let st = { count: 0, distance: 0, time: 0 };
+  try { st = MISSION.stats(m); } catch { /* bozuk kayıt */ }
+  const pts = [];
+  try { for (const q of MISSION.path(m)) pts.push([q.lat, q.lon]); } catch { /* yok */ }
+  return { id: m.id, name: m.name, vehicle: m.vehicle, createdAt: m.createdAt, updatedAt: m.updatedAt || m.createdAt, count: st.count, distance: st.distance, time: st.time, fence: m.fence.polygons.length + m.fence.circles.length, rally: m.rally.length, preview: pts.length > 200 ? pts.filter((_, i) => i % Math.ceil(pts.length / 200) === 0) : pts };
+}
+function saveMission(form, sender) {
+  if (!store.missions) store.missions = [];
+  const prev = form.id ? getMission(form.id) : null;
+  const m = MISSION.normalize({ ...(prev || {}), ...form });
+  if (!m.name) return { ok: false, invalid: ['name'] };
+  const id = prev ? prev.id : uid();
+  const next = { ...m, id, createdAt: prev ? prev.createdAt : Date.now(), updatedAt: Date.now() };
+  if (prev) store.missions[store.missions.indexOf(prev)] = next; else store.missions.push(next);
+  saveStore();
+  broadcastStore();
+  // Düzenleyici penceresi kendi kaydettiğini yeniden yüklemez
+  const w = missionWindows.get(id);
+  if (w && !w.isDestroyed() && w.webContents !== sender) w.webContents.send('mission:changed', next);
+  return { ok: true, id };
+}
+function openMission(id) {
+  const m = getMission(id);
+  if (!m) return;
+  const win = openSubWindow(missionWindows, id, 'mission.html', m.name, [1600, 960]);
+  if (win && !win.missionBound) { win.missionBound = true; win.on('closed', () => missionWindows.delete(id)); }
+}
+ipcMain.handle('mission:save', (e, form) => saveMission(form || {}, e.sender));
+ipcMain.handle('mission:get', (_e, id) => getMission(id));
+ipcMain.handle('mission:open', (_e, id) => openMission(id));
+ipcMain.handle('mission:duplicate', (_e, id) => { const m = getMission(id); return m ? saveMission({ ...m, id: undefined, name: `${m.name} (2)` }) : null; });
+ipcMain.handle('mission:delete', (_e, id) => {
+  const w = missionWindows.get(id);
+  if (w && !w.isDestroyed()) w.destroy();
+  store.missions = (store.missions || []).filter((x) => x.id !== id);
+  saveStore();
+  broadcastStore();
+});
+// Dosyaya aktar: QGroundControl .plan ya da Mission Planner .waypoints
+ipcMain.handle('mission:export', async (event, { doc, format, firmware } = {}) => {
+  const m = MISSION.normalize(doc || {});
+  const wpl = format === 'waypoints';
+  const res = await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), { defaultPath: path.join(app.getPath('documents'), `${safeName(m.name || 'mission')}.${wpl ? 'waypoints' : 'plan'}`),
+    filters: wpl ? [{ name: 'Mission Planner', extensions: ['waypoints', 'txt'] }] : [{ name: 'QGroundControl', extensions: ['plan'] }] });
+  if (res.canceled || !res.filePath) return null;
+  await fs.promises.writeFile(res.filePath, wpl ? MISSION.toWpl(m) : JSON.stringify(MISSION.toPlan(m, { firmware }), null, 2), 'utf8');
+  return res.filePath;
+});
+// Dosyadan al: biçim içerikten anlaşılır
+ipcMain.handle('mission:import', async (event) => {
+  const res = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), { properties: ['openFile'], filters: [{ name: 'Mission', extensions: ['plan', 'waypoints', 'txt', 'mission', 'json'] }, { name: '*', extensions: ['*'] }] });
+  if (res.canceled || !res.filePaths.length) return null;
+  try {
+    const text = (await fs.promises.readFile(res.filePaths[0], 'utf8')).slice(0, 8000000);
+    const doc = /^\s*QGC WPL/.test(text) ? MISSION.fromWpl(text) : MISSION.fromPlan(text);
+    return { ok: true, file: res.filePaths[0], name: path.basename(res.filePaths[0]).replace(/\.[^.]+$/, ''), doc, skipped: doc.skipped || 0 };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+// Araçla görev alışverişi: gerekirse bağlanır; yalnız bu iş için bağlandıysa iş bitince bağlantıyı bırakır.
+//   op: 'upload' (doc gerekir) | 'download' | 'clear'
+ipcMain.handle('mission:vehicle', async (_e, { droneId, op, doc } = {}) => {
+  if (!getDrone(droneId)) return { ok: false, error: 'not_found' };
+  const ds = drones();
+  const before = ds.state(droneId);
+  const wasOpen = !!(before && before.connected);
+  try {
+    if (!wasOpen) await ds.connect(droneId);
+    const until = Date.now() + 10000;
+    while (Date.now() < until) { const st = ds.state(droneId); if (st && st.linked) break; if (st && st.error) return { ok: false, error: st.error }; await new Promise((r) => setTimeout(r, 150)); }
+    const st = ds.state(droneId);
+    if (!st || !st.linked) return { ok: false, error: 'timeout' };
+    if (op === 'upload') return await ds.call(droneId, 'uploadMission', [MISSION.normalize(doc || {})]);
+    if (op === 'download') return await ds.call(droneId, 'downloadMission', []);
+    if (op === 'clear') return await ds.call(droneId, 'clearMission', []);
+    return { ok: false, error: 'unsupported' };
+  } finally { if (!wasOpen) releaseDrone(droneId); }
+});
 
 // ---- Telemetri kayıtları: listeleme, silme, klasör, oynatma ----
 ipcMain.handle('dronelog:list', (_e, droneId) => (getDrone(droneId) ? droneLogs().list(droneId) : []));

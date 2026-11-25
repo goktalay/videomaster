@@ -25,6 +25,7 @@ class FlatMap {
     this.markers = new Set();
     this.tiles = new Map(); // anahtar → img
     this.dragging = false;
+    this.dblZoom = opts.dblZoom !== false; // false: çift tıklama yakınlaştırmaz, 'dblclick' olayı yayılır
     this.anim = null;
     this.el.classList.add('flat-map');
     this.el.innerHTML = '<div class="flat-tiles"></div><canvas class="flat-draw"></canvas><div class="flat-markers"></div><div class="flat-attrib"></div>';
@@ -67,6 +68,16 @@ class FlatMap {
     };
     this.anim = requestAnimationFrame(step);
   }
+  // Verilen noktaları ([lon, lat]…) görünüme sığdırır
+  fitBounds(points, pad = 80) {
+    if (!points || !points.length) return;
+    let a = Infinity; let b = -Infinity; let c = Infinity; let d = -Infinity;
+    for (const [lo, la] of points) { a = Math.min(a, lo); b = Math.max(b, lo); c = Math.min(c, la); d = Math.max(d, la); }
+    const w = Math.max(50, this.el.clientWidth - pad * 2); const h = Math.max(50, this.el.clientHeight - pad * 2);
+    let z = this._maxZoom();
+    while (z > 2 && (flatX(b, z) - flatX(a, z) > w || flatY(c, z) - flatY(d, z) > h)) z -= 0.25;
+    this.jumpTo({ center: [(a + b) / 2, flatLat((flatY(c, z) + flatY(d, z)) / 2, z)], zoom: points.length === 1 ? Math.min(z, 17) : z });
+  }
   zoomIn() { this.easeTo({ zoom: this.zoom + 1 }); }
   zoomOut() { this.easeTo({ zoom: this.zoom - 1 }); }
   _stop() { if (this.anim) { cancelAnimationFrame(this.anim); this.anim = null; } }
@@ -74,6 +85,7 @@ class FlatMap {
     if (o.center) this.center = { lng: o.center[0], lat: Math.max(-85, Math.min(85, o.center[1])) };
     if (Number.isFinite(o.zoom)) this.zoom = Math.max(2, Math.min(this._maxZoom() + 2, o.zoom));
     this._later();
+    this._fire('move');
   }
   _maxZoom() { const r = this.rasters[this.visible]; return (r && r.maxzoom) || 19; }
   _later() { if (!this.raf) this.raf = requestAnimationFrame(() => { this.raf = null; if (!this.removed) this.draw(); }); }
@@ -110,7 +122,8 @@ class FlatMap {
     this.winHandlers = [['mousemove', move], ['mouseup', up]];
     for (const [n, fn] of this.winHandlers) addEventListener(n, fn);
     this.el.addEventListener('contextmenu', (e) => { e.preventDefault(); const [x, y] = pos(e); this._fire('contextmenu', { lngLat: this.unproject(x, y), point: { x, y } }); });
-    this.el.addEventListener('dblclick', (e) => { const [x, y] = pos(e); this._zoomAt(x, y, 1, 250); });
+    this.el.addEventListener('dblclick', (e) => { const [x, y] = pos(e); if (this.dblZoom) this._zoomAt(x, y, 1, 250); else this._fire('dblclick', { lngLat: this.unproject(x, y), point: { x, y } }); });
+    this.el.addEventListener('mousemove', (e) => { if (this.handlers.mousemove && !down) { const [x, y] = pos(e); this._fire('mousemove', { lngLat: this.unproject(x, y), point: { x, y } }); } });
     this.el.addEventListener('wheel', (e) => { e.preventDefault(); const [x, y] = pos(e); this._zoomAt(x, y, -Math.sign(e.deltaY) * (e.ctrlKey ? 0.5 : 0.35), 0); }, { passive: false });
   }
   // İmlecin altındaki nokta yerinde kalacak biçimde yakınlaştırır
@@ -169,18 +182,25 @@ class FlatMap {
     g.lineJoin = 'round'; g.lineCap = 'round';
     for (const l of this.layers) {
       const d = this.data[l.source];
-      if (!d || (l.type !== 'line' && l.type !== 'circle')) continue;
+      if (!d || (l.type !== 'line' && l.type !== 'circle' && l.type !== 'fill')) continue;
       const feats = d.type === 'FeatureCollection' ? d.features : [d];
       const p = l.paint || {};
       for (const f of feats) {
         const geo = f && f.geometry;
         if (!geo) continue;
-        if (l.type === 'line' && geo.type === 'LineString' && geo.coordinates.length > 1) {
+        const fp = f.properties || {};
+        if (l.type === 'fill' && geo.type === 'Polygon' && geo.coordinates[0] && geo.coordinates[0].length > 2) {
+          g.beginPath();
+          geo.coordinates[0].forEach((q, i) => { const [x, y] = this.project(q[0], q[1]); if (i) g.lineTo(x, y); else g.moveTo(x, y); });
+          g.closePath();
+          g.globalAlpha = fp.opacity || p['fill-opacity'] || 0.2; g.fillStyle = fp.color || p['fill-color'] || '#22d3ee'; g.fill(); g.globalAlpha = 1;
+          g.setLineDash(fp.dash ? [6, 5] : []); g.lineWidth = 2; g.strokeStyle = fp.color || p['fill-outline-color'] || p['fill-color'] || '#22d3ee'; g.stroke(); g.setLineDash([]);
+        } else if (l.type === 'line' && geo.type === 'LineString' && geo.coordinates.length > 1) {
           g.beginPath();
           geo.coordinates.forEach((q, i) => { const [x, y] = this.project(q[0], q[1]); if (i) g.lineTo(x, y); else g.moveTo(x, y); });
           g.setLineDash(p['line-dasharray'] ? p['line-dasharray'].map((v) => v * (p['line-width'] || 2)) : []);
           g.strokeStyle = 'rgba(0,0,0,.55)'; g.lineWidth = (p['line-width'] || 2) + 2; g.stroke();
-          g.strokeStyle = p['line-color'] || '#fbbf24'; g.lineWidth = p['line-width'] || 2; g.stroke();
+          g.strokeStyle = fp.color || p['line-color'] || '#fbbf24'; g.lineWidth = p['line-width'] || 2; g.stroke();
           g.setLineDash([]);
         } else if (l.type === 'circle' && geo.type === 'Point') {
           const [x, y] = this.project(geo.coordinates[0], geo.coordinates[1]);

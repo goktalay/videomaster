@@ -10,8 +10,13 @@
 // Seçenekler: interactive (yerde başlar, komutlara uyar; yoksa daire çizer), simSpeed, noReposition (DO_REPOSITION desteklenmez),
 //   sysid, home {lat, lon, alt}, heartbeatMs, telemetryScale (1 = gerçek hızlar), dropParams [indeksler] (ilk listede
 //   düşürülür), calStepMs (kalibrasyon adım süresi), silent (hiçbir şey göndermez; bağlantı kopması sınaması için).
+// Görev protokolü (görev 0, çit 1, toplanma noktaları 2): noFence (çit/toplanma istekleri MISSION_ACK 3 = desteklenmiyor),
+//   dropMissionRequests n (ilk n MISSION_COUNT ve ilk n öğe yok sayılır: yeniden deneme sınaması), legacyMission (öğeler eski
+//   MISSION_REQUEST ile istenir; okumada yalnız MISSION_REQUEST yanıtlanır, MISSION_ITEM ile), missionMax (daha uzun liste
+//   MISSION_ACK 4 = yer yok), missionRetryMs (öğe yeniden isteme aralığı), unsupported [komut kimlikleri] (MAV_RESULT 3).
+//   interactive kipte kuruluyken AUTO (3) + MISSION_START ile görev uçulur.
 // Dönen nesne: { start, stop, tcpPort, udpPort, calls [{ name, id, params }], params (Map ad → { value, type }),
-//   state, statustext(text, severity), setSilent(on) }
+//   state, mission ({ 0: [öğe…], 1: […], 2: […] } ham MAVLink alanları), statustext(text, severity), setSilent(on) }
 
 const net = require('net');
 const dgram = require('dgram');
@@ -69,11 +74,12 @@ function createSim(opts = {}) {
   const names = () => [...params.keys()];
   const drop = new Set(opts.dropParams || []);
 
-  const state = { pos: opts.interactive ? { n: 0, e: 0, alt: 0, vn: 0, ve: 0, vd: 0, heading: 0, at: Date.now() } : null, target: null, armed: false, mode: 0, boot: Date.now(), seq: 0, silent: !!opts.silent, magCal: null, accelStep: 0, textId: 0, rebooted: 0, intervals: {}, streams: {} };
+  const state = { pos: opts.interactive ? { n: 0, e: 0, alt: 0, vn: 0, ve: 0, vd: 0, heading: 0, at: Date.now() } : null, target: null, armed: false, mode: 0, boot: Date.now(), seq: 0, silent: !!opts.silent, magCal: null, accelStep: 0, textId: 0, rebooted: 0, intervals: {}, streams: {},
+    mission: { 0: [], 1: [], 2: [] }, missionCur: 0, auto: { started: false, seq: 0, entered: false, speed: 0, jumps: {}, holdUntil: 0, hold: null } };
   const calls = [];
   const timers = new Set();
   const channels = []; // { send(buf), close() }
-  const sim = { calls, params, state, tcpPort: null, udpPort: null };
+  const sim = { calls, params, state, mission: state.mission, tcpPort: null, udpPort: null };
 
   let tcpServer = null;
   const tcpClients = new Set();
@@ -118,19 +124,20 @@ function createSim(opts = {}) {
       if (state.mode === 9) tgt = { n: p.n, e: p.e, alt: 0 };
       else if (state.mode === 6) { const near = Math.hypot(p.n, p.e) < 1; tgt = { n: 0, e: 0, alt: near ? 0 : Math.max(p.alt, 15) }; }
       else if (state.mode === 4 && state.target) tgt = state.target;
+      else if (state.mode === 3) tgt = missionStep(p, now);
     } else if (p.alt > 0) { p.alt = Math.max(0, p.alt - 9 * dt); p.vd = 9; }
     p.vn = 0; p.ve = 0; if (state.armed) p.vd = 0;
     if (tgt) {
       const dn = tgt.n - p.n; const de = tgt.e - p.e; const d = Math.hypot(dn, de);
       if (d > 0.05 && p.alt > 0.5) {
-        const v = Math.min(12, d / Math.max(dt, 1e-3));
+        const v = Math.min(state.mode === 3 && state.auto.speed > 0 ? state.auto.speed : 12, d / Math.max(dt, 1e-3));
         p.vn = (dn / d) * v; p.ve = (de / d) * v;
         p.n += p.vn * dt; p.e += p.ve * dt;
         if (d > 1) p.heading = ((Math.atan2(de, dn) * 180 / Math.PI) + 360) % 360;
       }
       const da = tgt.alt - p.alt;
       if (Math.abs(da) > 0.02) { const v = Math.sign(da) * Math.min(3, Math.abs(da) / Math.max(dt, 1e-3)); p.alt += v * dt; p.vd = -v; }
-      if ((state.mode === 9 || state.mode === 6) && tgt.alt === 0 && p.alt <= 0.05) { p.alt = 0; state.armed = false; state.target = null; statustext('Disarming motors', 6); sendHeartbeat(); }
+      if ((state.mode === 9 || state.mode === 6) && tgt.alt === 0 && p.alt <= 0.05) { p.alt = 0; state.armed = false; state.target = null; state.auto.started = false; statustext('Disarming motors', 6); sendHeartbeat(); }
     }
     const speed = Math.hypot(p.vn, p.ve);
     return {
@@ -140,6 +147,128 @@ function createSim(opts = {}) {
     };
   }
   const toLocal = (lat, lon) => ({ n: (lat - home.lat) * 111320, e: (lon - home.lon) * mPerLon });
+
+  // ---- Görev protokolü ----
+  let gcs = { sysid: 255, compid: 190 }; // son görev iletisini gönderen yer istasyonu
+  let missionRx = null;                  // süren yükleme: { type, count, items, tries, timer }
+  const dropLeft = { count: opts.dropMissionRequests || 0, item: opts.dropMissionRequests || 0 };
+  const missionRetryMs = opts.missionRetryMs || 250;
+  const mTarget = (type) => ({ target_system: gcs.sysid, target_component: gcs.compid, mission_type: type });
+  const missionAck = (type, result) => send('MISSION_ACK', { ...mTarget(type), type: result });
+  function sendMissionCurrent() {
+    send('MISSION_CURRENT', { seq: state.missionCur, total: state.mission[0].length, mission_state: state.auto.started ? (state.mode === 3 ? 3 : 4) : state.mission[0].length ? 2 : 1 });
+  }
+  function setMissionCurrent(seq) {
+    if (!Number.isInteger(seq) || seq < 0 || seq >= state.mission[0].length) return false;
+    state.missionCur = seq;
+    state.auto.seq = seq;
+    state.auto.entered = false;
+    sendMissionCurrent();
+    return true;
+  }
+  function missionRequest() {
+    const rx = missionRx;
+    send(opts.legacyMission ? 'MISSION_REQUEST' : 'MISSION_REQUEST_INT', { ...mTarget(rx.type), seq: rx.items.length });
+    clearTimeout(rx.timer); timers.delete(rx.timer);
+    rx.timer = later(() => {
+      if (missionRx !== rx) return;
+      if (rx.tries >= 4) { missionRx = null; missionAck(rx.type, 15); return; } // MAV_MISSION_OPERATION_CANCELLED
+      rx.tries++;
+      missionRequest();
+    }, missionRetryMs);
+  }
+  function onMissionCount(f) {
+    const type = f.mission_type || 0;
+    calls.push({ name: 'MISSION_COUNT', id: -1, params: [f.count, type] });
+    if (dropLeft.count > 0) { dropLeft.count--; return; }
+    if (opts.noFence && type !== 0) { missionAck(type, 3); return; }
+    if (!(type in state.mission)) { missionAck(type, 3); return; }
+    if (opts.missionMax !== undefined && f.count > opts.missionMax) { missionAck(type, 4); return; } // MAV_MISSION_NO_SPACE
+    if (missionRx) { clearTimeout(missionRx.timer); timers.delete(missionRx.timer); }
+    if (!f.count) { missionRx = null; storeMission(type, []); missionAck(type, 0); return; }
+    missionRx = { type, count: f.count, items: [], tries: 0, timer: null };
+    missionRequest();
+  }
+  function storeMission(type, items) {
+    state.mission[type] = items;
+    if (type === 0) { state.missionCur = 0; state.auto = { started: false, seq: 0, entered: false, speed: 0, jumps: {}, holdUntil: 0, hold: null }; }
+  }
+  function onMissionItem(f, int) {
+    const rx = missionRx;
+    const type = f.mission_type || 0;
+    if (!rx || rx.type !== type) return;
+    if (dropLeft.item > 0) { dropLeft.item--; return; }
+    if (f.seq < rx.items.length) return; // yinelenen öğe
+    if (f.seq > rx.items.length) { missionAck(type, 13); return; } // MAV_MISSION_INVALID_SEQUENCE
+    rx.items.push({ seq: f.seq, mission_type: type, frame: f.frame, command: f.command, current: f.current, autocontinue: f.autocontinue,
+      param1: f.param1, param2: f.param2, param3: f.param3, param4: f.param4, x: int ? f.x : Math.round(f.x * 1e7), y: int ? f.y : Math.round(f.y * 1e7), z: f.z });
+    rx.tries = 0;
+    if (rx.items.length < rx.count) { missionRequest(); return; }
+    clearTimeout(rx.timer); timers.delete(rx.timer);
+    missionRx = null;
+    storeMission(type, rx.items);
+    missionAck(type, 0);
+  }
+  function sendMissionItem(f, int) {
+    const type = f.mission_type || 0;
+    if (opts.noFence && type !== 0) { missionAck(type, 3); return; }
+    const it = (state.mission[type] || [])[f.seq];
+    if (!it) { missionAck(type, 13); return; }
+    const { x, y, ...rest } = it;
+    if (int) send('MISSION_ITEM_INT', { ...mTarget(type), ...rest, x, y, current: type === 0 && f.seq === state.missionCur ? 1 : 0 });
+    else send('MISSION_ITEM', { ...mTarget(type), ...rest, x: x / 1e7, y: y / 1e7, current: type === 0 && f.seq === state.missionCur ? 1 : 0 });
+  }
+
+  // Görev uçuşu (interactive, kurulu, AUTO, başlatılmış): etkin öğenin hedefini döndürür; öğe bitince sıradakine geçer.
+  //   0. öğe evdir. Kalkış, nokta/eğri/bekleme (nokta gibi), DO_JUMP, DO_CHANGE_SPEED, RTL (kip 6), iniş (kip 9); öteki DO_ komutları atlanır.
+  function missionStep(p, now) {
+    const a = state.auto;
+    if (!a.started) {
+      if (a.done) return a.hold; // görev bitti: olduğu yerde bekler
+      if (p.alt <= 0.5 || state.mission[0].length < 2) return null; // yerde MISSION_START beklenir
+      a.started = true; a.entered = false; // havada AUTO kipine geçince görev kendiliğinden başlar
+      if (a.seq < 1) a.seq = 1;
+    }
+    const list = state.mission[0];
+    for (let guard = 0; guard < 100; guard++) {
+      const it = list[a.seq];
+      if (!it) { a.started = false; a.done = true; a.hold = { n: p.n, e: p.e, alt: p.alt }; sendMissionCurrent(); return a.hold; }
+      if (!a.entered) {
+        a.entered = true; a.holdUntil = 0; a.hold = { n: p.n, e: p.e, alt: p.alt };
+        if (state.missionCur !== a.seq) { state.missionCur = a.seq; sendMissionCurrent(); }
+      }
+      const advance = () => { a.seq++; a.entered = false; };
+      const reached = () => send('MISSION_ITEM_REACHED', { seq: a.seq });
+      switch (it.command) {
+        case 22: { // NAV_TAKEOFF: bulunduğu yerde z irtifasına tırmanır
+          if (Math.abs(p.alt - it.z) < 0.3) { reached(); advance(); break; }
+          return { n: a.hold.n, e: a.hold.e, alt: it.z };
+        }
+        case 16: case 82: case 17: case 18: case 19: { // nokta, eğri, bekleme türleri
+          const tgt = it.x || it.y ? { ...toLocal(it.x / 1e7, it.y / 1e7), alt: it.z } : { n: a.hold.n, e: a.hold.e, alt: it.z };
+          if (Math.hypot(tgt.n - p.n, tgt.e - p.e) > 0.5 || Math.abs(tgt.alt - p.alt) > 0.3) return tgt;
+          if (it.command === 17) return tgt; // süresiz bekleme
+          const wait = it.command === 16 || it.command === 19 ? (Number.isFinite(it.param1) ? it.param1 : 0) : 0;
+          if (wait > 0) {
+            if (!a.holdUntil) a.holdUntil = now + (wait * 1000) / (opts.simSpeed || 1);
+            if (now < a.holdUntil) return tgt;
+          }
+          reached(); advance();
+          break;
+        }
+        case 177: { // DO_JUMP: param1 = hedef seq, param2 = yineleme sayısı (-1 = sonsuz)
+          const done = a.jumps[a.seq] || 0;
+          if (it.param2 < 0 || done < it.param2) { a.jumps[a.seq] = done + 1; a.seq = Math.round(it.param1); a.entered = false; } else advance();
+          break;
+        }
+        case 178: if (it.param2 > 0) a.speed = it.param2; advance(); break; // DO_CHANGE_SPEED
+        case 20: a.started = false; state.mode = 6; sendHeartbeat(); return null; // NAV_RETURN_TO_LAUNCH
+        case 21: a.started = false; state.mode = 9; sendHeartbeat(); return null;            // NAV_LAND
+        default: advance();
+      }
+    }
+    return a.hold;
+  }
 
   function flight() {
     if (state.pos) return fly();
@@ -263,6 +392,7 @@ function createSim(opts = {}) {
     const id = f.command;
     const p = [f.param1, f.param2, f.param3, f.param4, f.param5, f.param6, f.param7];
     const def = COMMANDS[id];
+    if ((opts.unsupported || []).includes(id)) { calls.push({ name: def ? def.name : `CMD_${id}`, id, params: p }); ack(id, 3); return; }
     calls.push({ name: def ? def.name : `CMD_${id}`, id, params: p, ...(f.frame !== undefined ? { frame: f.frame } : {}) });
     switch (id) {
       case 400: { // MAV_CMD_COMPONENT_ARM_DISARM
@@ -349,6 +479,15 @@ function createSim(opts = {}) {
       }
       case 20: state.mode = 6; ack(id, 0); sendHeartbeat(); break; // MAV_CMD_NAV_RETURN_TO_LAUNCH
       case 21: state.mode = 9; ack(id, 0); sendHeartbeat(); break; // MAV_CMD_NAV_LAND
+      case 224: ack(id, setMissionCurrent(Math.round(p[0])) ? 0 : 4); break; // MAV_CMD_DO_SET_MISSION_CURRENT
+      case 300: { // MAV_CMD_MISSION_START (kurulu ve AUTO kipinde)
+        if (!state.armed || state.mode !== 3) { ack(id, 4); break; }
+        const a = state.auto;
+        a.started = true; a.done = false; a.entered = false; a.jumps = {}; a.speed = 0;
+        if (a.seq < 1 || a.seq >= state.mission[0].length) a.seq = 1;
+        ack(id, 0);
+        break;
+      }
       default: ack(id, 3); // MAV_RESULT_UNSUPPORTED
     }
   }
@@ -364,7 +503,33 @@ function createSim(opts = {}) {
     const f = msg.fields;
     if (!f) return;
     if ('target_system' in f && f.target_system !== 0 && f.target_system !== sysid) return;
+    if (/^MISSION_/.test(msg.name)) gcs = { sysid: msg.sysid, compid: msg.compid };
     switch (msg.name) {
+      case 'MISSION_COUNT': onMissionCount(f); break;
+      case 'MISSION_ITEM_INT': onMissionItem(f, true); break;
+      case 'MISSION_ITEM': onMissionItem(f, false); break;
+      case 'MISSION_REQUEST_LIST': {
+        const type = f.mission_type || 0;
+        calls.push({ name: 'MISSION_REQUEST_LIST', id: -1, params: [type] });
+        if ((opts.noFence && type !== 0) || !(type in state.mission)) { missionAck(type, 3); break; }
+        send('MISSION_COUNT', { ...mTarget(type), count: state.mission[type].length });
+        break;
+      }
+      case 'MISSION_REQUEST_INT': if (!opts.legacyMission) sendMissionItem(f, true); break; // eski yazılım _INT isteğini tanımaz
+      case 'MISSION_REQUEST': sendMissionItem(f, !opts.legacyMission); break;
+      case 'MISSION_ACK': calls.push({ name: 'MISSION_ACK', id: -1, params: [f.type, f.mission_type || 0] }); break;
+      case 'MISSION_CLEAR_ALL': {
+        const type = f.mission_type || 0;
+        calls.push({ name: 'MISSION_CLEAR_ALL', id: -1, params: [type] });
+        if ((opts.noFence && type !== 0) || !(type in state.mission)) { missionAck(type, 3); break; }
+        storeMission(type, []);
+        missionAck(type, 0);
+        break;
+      }
+      case 'MISSION_SET_CURRENT':
+        calls.push({ name: 'MISSION_SET_CURRENT', id: -1, params: [f.seq] });
+        setMissionCurrent(f.seq);
+        break;
       case 'COMMAND_LONG': onCommand(f); break;
       case 'COMMAND_INT': onCommand({ command: f.command, param1: f.param1, param2: f.param2, param3: f.param3, param4: f.param4, param5: f.x / 1e7, param6: f.y / 1e7, param7: f.z, frame: f.frame }); break;
       case 'SET_POSITION_TARGET_GLOBAL_INT':
@@ -456,6 +621,7 @@ function createSim(opts = {}) {
     }
     every(sendHeartbeat, hbMs);
     for (const name of Object.keys(TELEMETRY)) every(TELEMETRY[name], Math.max(10, Math.round(1000 / (RATES[name] * scale))));
+    every(sendMissionCurrent, Math.max(10, Math.round(1000 / scale)));
     sendHeartbeat();
     return sim;
   };

@@ -136,3 +136,7 @@
 .fl-replay .seg { background: rgba(255, 255, 255, .07); border-color: rgba(255, 255, 255, .12); }
 .fl-replay .seg button { color: #b6c4d8; padding: 5px 9px; }
 .fl-replay .seg button.on { background: rgba(255, 255, 255, .2); color: #fff; }
+
+/* Yüklü görevin haritadaki noktaları */
+.fl-wp { display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 10px; background: #f5d0fe; color: #3b0764; font: 700 10.5px/1 system-ui, sans-serif; border: 1.5px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .5); }
+.fl-wp.cur { background: #d946ef; color: #fff; min-width: 26px; height: 26px; font-size: 12px; box-shadow: 0 0 0 5px rgba(217, 70, 239, .35), 0 2px 6px rgba(0, 0, 0, .5); z-index: 2; }

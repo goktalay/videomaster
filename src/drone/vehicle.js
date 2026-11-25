@@ -15,6 +15,7 @@
 //   'params'({ total, received, loading, done })         parametre indirme ilerlemesi
 //   'param'({ name, value, type, index })                her PARAM_VALUE
 //   'calibration'({ kind, state, text, position?, positionName?, percent?, compass? })
+//   'mission'({ op: 'upload' | 'download', part: 'mission' | 'fence' | 'rally', done, total })   görev aktarımı ilerlemesi
 //   'error'(err)                  bağlantı hataları (err.code)
 // Söz verilen (Promise) dönen bütün işlevler reddetmez; { ok:false, error } ile çözülür.
 
@@ -22,6 +23,7 @@ const { EventEmitter } = require('events');
 const mav = require('./mavlink');
 const { createLink } = require('./link');
 const MOTOR_LAYOUTS = require('./motorlayouts.json').layouts;
+const MISSION = require('./mission');
 
 const { MavParser, encode, ENUMS, COMMANDS, COMMAND_IDS, enumName } = mav;
 
@@ -45,6 +47,8 @@ const CMD = {
   NAV_LAND: 21,
   NAV_TAKEOFF: 22,
   DO_SET_MODE: 176,
+  DO_SET_MISSION_CURRENT: 224,
+  MISSION_START: 300,
   DO_SET_HOME: 179,
   DO_REPOSITION: 192,
   DO_MOTOR_TEST: 209,
@@ -67,6 +71,13 @@ const FORCE_ARM_DISARM = 21196;
 const ACCEL_POS_SUCCESS = 16777215;
 const ACCEL_POS_FAILED = 16777216;
 const ACCEL_POS_NAMES = { 1: 'LEVEL', 2: 'LEFT', 3: 'RIGHT', 4: 'NOSEDOWN', 5: 'NOSEUP', 6: 'BACK' };
+
+// MAV_MISSION_RESULT (MISSION_ACK.type) → hata adı
+const MISSION_RESULTS = ['accepted', 'error', 'unsupported_frame', 'unsupported', 'no_space', 'invalid', 'invalid_param1', 'invalid_param2', 'invalid_param3', 'invalid_param4', 'invalid_param5_x', 'invalid_param6_y', 'invalid_param7', 'invalid_sequence', 'denied', 'operation_cancelled'];
+const MAV_MISSION_ACCEPTED = 0;
+const MAV_MISSION_INVALID_SEQUENCE = 13;
+const MISSION_PARTS = ['mission', 'fence', 'rally']; // MAV_MISSION_TYPE 0, 1, 2
+const emptyMissionState = () => ({ current: -1, reached: -1, seq: null, count: null });
 
 const MAG_CAL_SUCCESS = 4;
 const MAG_CAL_FAILED = 5;
@@ -160,6 +171,9 @@ class MavVehicle extends EventEmitter {
     this.streamRate = Math.min(50, Math.max(1, Number(this.opts.streamRate) || 4));
     this.linkTimeoutMs = Number(this.opts.linkTimeoutMs) || 3500;
     this.paramGapMs = Number(this.opts.paramGapMs) || 1500;
+    this.missionRetryMs = Number(this.opts.missionRetryMs) || 1500;             // yanıt gelmezse yeniden gönderme aralığı
+    this.missionItemTimeoutMs = Number(this.opts.missionItemTimeoutMs) || 4000; // yükleme sırasında araçtan istek gelmezse
+    this.missionRetries = Number.isInteger(this.opts.missionRetries) ? Math.max(0, this.opts.missionRetries) : 3; // ilk gönderimden sonraki yineleme sayısı
 
     this.link = null;
     this.parser = new MavParser();
@@ -212,6 +226,14 @@ class MavVehicle extends EventEmitter {
     this._cal = null;
     this._texts = new Map();        // "compid:id" → çok parçalı STATUSTEXT
     this._versionAsked = false;
+    this.mission = null;            // araca yüklenen / araçtan okunan görev (MISSION.normalize biçimi)
+    this._missionPath = [];
+    this.missionState = emptyMissionState();
+    this._missionBusy = false;
+    this._mx = null;                // süren görev aktarımı adımı: { on(name, f), finish(sonuç) }
+    this._missionCurAt = 0;
+    this._missionEmitAt = 0;
+    this._noMissionType = new Set(); // aracın desteklemediği görev türleri (çit, toplanma noktası)
   }
 
   // ---- Zamanlayıcı yardımcıları: disconnect() hepsini temizler ----
@@ -295,6 +317,8 @@ class MavVehicle extends EventEmitter {
     this._paramWaiters.clear();
     if (this._fetch) this._fetch.finish(false, 'disconnected');
     if (this._cal) this._calFinish('cancelled', { ok: false, error: 'disconnected' });
+    if (this._mx) this._mx.finish({ ok: false, error: 'disconnected' });
+    this._setMission(null);
     for (const t of this._texts.values()) clearTimeout(t.timer);
     this._texts.clear();
     if (link) { try { link.close(); } catch { /* yok */ } }
@@ -472,6 +496,9 @@ class MavVehicle extends EventEmitter {
       sensors: { present: s.present, enabled: s.enabled, health: s.health, list },
       params: { total: this.paramTotal, received: this.paramIdx.size, loading: this.paramLoading },
       frame: this.frame,
+      mission: this.mission
+        ? { loaded: true, count: this.mission.items.length, current: this.missionState.current, reached: this.missionState.reached, path: this._missionPath }
+        : { loaded: false, count: 0, current: -1, reached: -1, path: [] },
       stats: { ...this.stats },
     };
   }
@@ -823,6 +850,291 @@ class MavVehicle extends EventEmitter {
 
   // Bulunulan konumu ev konumu yap
   setHomeHere() { return this.command(CMD.DO_SET_HOME, [1]); }
+
+  // ---- Görevler (MAVLink görev protokolü: görev, coğrafi çit, toplanma noktaları) ----
+  // Görev belgesi mission.js biçimindedir; belgedeki öğe sırası 0'dan başlar. ArduPilot'ta aracın 0. öğesi ev konumudur
+  // (belge öğesi i ↔ seq i + 1); PX4'te ev öğesi yoktur (seq i).
+  _missionOffset() { return this.firmware === 'px4' ? 0 : 1; }
+
+  _setMission(doc) {
+    this.mission = doc || null;
+    this._missionPath = [];
+    if (doc) {
+      doc.items.forEach((it, index) => {
+        const def = MISSION.TYPES[it.type];
+        if (def && def.pos && it.lat !== null && it.lon !== null) this._missionPath.push({ lat: it.lat, lon: it.lon, alt: it.alt, index, type: it.type });
+      });
+    }
+    this.missionState.reached = -1;
+    if (!doc) this.missionState.current = -1;
+  }
+
+  // Aynı anda tek aktarım: ikincisi 'busy' alır
+  async _missionOp(fn) {
+    if (!this.ready) return { ok: false, error: 'not_connected' };
+    if (this._missionBusy) return { ok: false, error: 'busy' };
+    this._missionBusy = true;
+    try { return await fn(); } catch (err) { return { ok: false, error: 'error', detail: String((err && err.message) || err) }; } finally { this._missionBusy = false; }
+  }
+
+  // İlerleme olayı: en çok ~10 Hz (ilk ve son her zaman)
+  _missionProgress(op, part, done, total) {
+    const now = Date.now();
+    if (done > 0 && done < total && now - this._missionEmitAt < 100) return;
+    this._missionEmitAt = now;
+    this._emit('mission', { op, part, done, total });
+  }
+
+  // Aktarım adımı: on(name, f) gelen görev iletilerini işler; finish(sonuç) ile biter (disconnect() de bitirir)
+  _missionStep(setup) {
+    return new Promise((resolve) => {
+      const x = {
+        timer: null,
+        on: null,
+        arm: (fn, ms) => { this._cancel(x.timer); x.timer = this._later(fn, ms); },
+        finish: (r) => { this._cancel(x.timer); if (this._mx === x) this._mx = null; resolve(r); },
+      };
+      this._mx = x;
+      setup(x);
+    });
+  }
+
+  _onMissionMsg(name, f) {
+    if (f.target_system && f.target_system !== this.gcsSysid) return; // başka bir yer istasyonunun aktarımı
+    if (this._mx && this._mx.on) this._mx.on(name, f);
+  }
+
+  _missionTarget(type) { return { target_system: this.sysid, target_component: this.compid, mission_type: type }; }
+
+  // MAVLink 1'de mission_type alanı yoktur: çit/toplanma isteği GÖREVE uygulanırdı (ör. temizleme görevi silerdi)
+  _missionTypeUsable(type) { return type === 0 || this.txVersion === 2; }
+
+  // Bir listeyi yükler: MISSION_COUNT → araç her öğeyi ister (MISSION_REQUEST_INT / eski MISSION_REQUEST) → MISSION_ACK
+  _uploadPart(type, items) {
+    const part = MISSION_PARTS[type];
+    const total = items.length;
+    if (!this._missionTypeUsable(type)) return Promise.resolve({ ok: false, error: 'unsupported' });
+    return this._missionStep((x) => {
+      let tries = 0;
+      let done = 0;
+      let lastError = 'timeout';
+      const sendCount = () => {
+        if (!this._send('MISSION_COUNT', { ...this._missionTarget(type), count: total })) { x.finish({ ok: false, error: 'not_connected' }); return; }
+        x.arm(() => {
+          if (tries >= this.missionRetries) { x.finish({ ok: false, error: 'timeout' }); return; }
+          tries++;
+          sendCount();
+        }, this.missionRetryMs);
+      };
+      x.on = (name, f) => {
+        if ((f.mission_type || 0) !== type) return;
+        if (name === 'MISSION_REQUEST_INT' || name === 'MISSION_REQUEST') {
+          const it = items[f.seq];
+          if (!it) return;
+          this._send('MISSION_ITEM_INT', {
+            ...this._missionTarget(type), seq: f.seq, frame: it.frame, command: it.command, current: it.current, autocontinue: it.autocontinue,
+            param1: it.param1, param2: it.param2, param3: it.param3, param4: it.param4, x: it.x, y: it.y, z: it.z, // NaN olduğu gibi gider
+          });
+          if (f.seq + 1 > done) { done = f.seq + 1; this._missionProgress('upload', part, done, total); }
+          x.arm(() => x.finish({ ok: false, error: lastError }), this.missionItemTimeoutMs);
+        } else if (name === 'MISSION_ACK') {
+          if (f.type === MAV_MISSION_ACCEPTED) { if (done >= total) x.finish({ ok: true }); return; }
+          const error = MISSION_RESULTS[f.type] || `result_${f.type}`;
+          // Yinelenen öğe yüzünden gelen sıra hatası aktarımı bitirmez: araç doğru öğeyi yeniden ister
+          if (f.type === MAV_MISSION_INVALID_SEQUENCE && done > 0 && done < total) { lastError = error; return; }
+          x.finish({ ok: false, error, result: f.type });
+        }
+      };
+      this._missionProgress('upload', part, 0, total);
+      sendCount();
+    });
+  }
+
+  // Bir listeyi araçtan siler: MISSION_CLEAR_ALL → MISSION_ACK
+  _clearPart(type, retries = this.missionRetries) {
+    if (!this._missionTypeUsable(type)) return Promise.resolve({ ok: false, error: 'unsupported' });
+    return this._missionStep((x) => {
+      let tries = 0;
+      const send = () => {
+        if (!this._send('MISSION_CLEAR_ALL', this._missionTarget(type))) { x.finish({ ok: false, error: 'not_connected' }); return; }
+        x.arm(() => {
+          if (tries >= retries) { x.finish({ ok: false, error: 'timeout' }); return; }
+          tries++;
+          send();
+        }, this.missionRetryMs);
+      };
+      x.on = (name, f) => {
+        if (name !== 'MISSION_ACK' || (f.mission_type || 0) !== type) return;
+        if (f.type === MAV_MISSION_ACCEPTED) x.finish({ ok: true });
+        else x.finish({ ok: false, error: MISSION_RESULTS[f.type] || `result_${f.type}`, result: f.type });
+      };
+      send();
+    });
+  }
+
+  // Bir listeyi araçtan okur: MISSION_REQUEST_LIST → MISSION_COUNT → her öğe için MISSION_REQUEST_INT → MISSION_ITEM_INT → MISSION_ACK
+  //   Son denemede eski MISSION_REQUEST kullanılır (yalnız onu bilen yazılımlar MISSION_ITEM ile yanıtlar).
+  _downloadPart(type) {
+    const part = MISSION_PARTS[type];
+    if (!this._missionTypeUsable(type)) return Promise.resolve({ ok: false, error: 'unsupported', items: [] });
+    return this._missionStep((x) => {
+      const items = [];
+      let total = null;
+      let tries = 0;
+      let legacy = false;
+      const retry = (send) => x.arm(() => {
+        if (tries >= this.missionRetries) { x.finish({ ok: false, error: 'timeout', items: [] }); return; }
+        tries++;
+        send();
+      }, this.missionRetryMs);
+      const ask = () => {
+        const old = legacy || (tries > 0 && tries >= this.missionRetries);
+        if (!this._send(old ? 'MISSION_REQUEST' : 'MISSION_REQUEST_INT', { ...this._missionTarget(type), seq: items.length })) { x.finish({ ok: false, error: 'not_connected', items: [] }); return; }
+        retry(ask);
+      };
+      const list = () => {
+        if (!this._send('MISSION_REQUEST_LIST', this._missionTarget(type))) { x.finish({ ok: false, error: 'not_connected', items: [] }); return; }
+        retry(list);
+      };
+      const next = () => {
+        tries = 0;
+        if (items.length < total) { ask(); return; }
+        this._send('MISSION_ACK', { ...this._missionTarget(type), type: MAV_MISSION_ACCEPTED });
+        x.finish({ ok: true, items });
+      };
+      x.on = (name, f) => {
+        if ((f.mission_type || 0) !== type) return;
+        if (name === 'MISSION_COUNT') {
+          if (total !== null) return; // yinelenen yanıt
+          total = f.count;
+          this._missionProgress('download', part, 0, total);
+          next();
+        } else if (name === 'MISSION_ITEM_INT' || name === 'MISSION_ITEM') {
+          if (total === null || f.seq !== items.length) return;
+          const int = name === 'MISSION_ITEM_INT';
+          if (!int) legacy = true;
+          items.push({ seq: f.seq, mission_type: type, frame: f.frame, command: f.command, current: f.current, autocontinue: f.autocontinue,
+            param1: f.param1, param2: f.param2, param3: f.param3, param4: f.param4, x: int ? f.x : Math.round(f.x * 1e7), y: int ? f.y : Math.round(f.y * 1e7), z: f.z });
+          this._missionProgress('download', part, items.length, total);
+          next();
+        } else if (name === 'MISSION_ACK' && f.type !== MAV_MISSION_ACCEPTED) {
+          x.finish({ ok: false, error: MISSION_RESULTS[f.type] || `result_${f.type}`, result: f.type, items: [] });
+        }
+      };
+      list();
+    });
+  }
+
+  // Görevi araca yükler (görev + çit + toplanma noktaları). → { ok: true, count, fence, rally } | { ok: false, error, part }
+  //   Boş çit/toplanma listesi araçtaki eskisini siler; araç bu türleri desteklemiyorsa (eski yazılım) boş liste hata sayılmaz.
+  uploadMission(doc) {
+    return this._missionOp(async () => {
+      const m = MISSION.normalize(doc);
+      const sets = MISSION.toMav(m, { firmware: this.firmware });
+      const lists = [sets.mission, sets.fence, sets.rally];
+      for (let type = 0; type < 3; type++) {
+        const part = MISSION_PARTS[type];
+        const items = lists[type];
+        let r;
+        if (items.length) r = await this._uploadPart(type, items);
+        else if (type === 0) r = await this._clearPart(0);
+        else if (this._noMissionType.has(type)) continue; // desteklenmediği biliniyor: silinecek bir şey yok
+        else { this._missionProgress('upload', part, 0, 0); r = await this._clearPart(type, Math.min(1, this.missionRetries)); }
+        if (r.ok) { this._noMissionType.delete(type); continue; }
+        if (!this.ready || r.error === 'disconnected' || r.error === 'not_connected') return { ...r, part };
+        if (type !== 0 && (r.error === 'unsupported' || r.error === 'timeout')) this._noMissionType.add(type);
+        if (type !== 0 && !items.length) continue; // boş çit / toplanma listesi: yoksay
+        return { ...r, part };
+      }
+      this._setMission(m);
+      this._touch(true);
+      return { ok: true, count: m.items.length, fence: sets.fence.length, rally: sets.rally.length };
+    });
+  }
+
+  // Araçtaki görevi okur. → { ok: true, mission: görev belgesi } | { ok: false, error, part }
+  //   Çit ve toplanma noktaları okunamazsa (desteklenmiyor / yanıt yok) boş sayılır.
+  downloadMission() {
+    return this._missionOp(async () => {
+      const sets = { mission: [], fence: [], rally: [] };
+      for (let type = 0; type < 3; type++) {
+        const part = MISSION_PARTS[type];
+        if (type !== 0 && this._noMissionType.has(type)) continue;
+        const r = await this._downloadPart(type);
+        if (r.ok) { sets[part] = r.items; this._noMissionType.delete(type); continue; }
+        if (!this.ready || r.error === 'disconnected' || r.error === 'not_connected' || type === 0) { const { items, ...rest } = r; return { ...rest, part }; }
+        if (r.error === 'unsupported' || r.error === 'timeout') this._noMissionType.add(type);
+      }
+      const m = MISSION.fromMav(sets, { firmware: this.firmware });
+      const cls = { heli: 'copter', vtol: 'plane' }[this.vehicle] || this.vehicle;
+      if (MISSION.VEHICLES.includes(cls)) m.vehicle = cls;
+      this._setMission(m);
+      this._touch(true);
+      return { ok: true, mission: m };
+    });
+  }
+
+  // Araçtaki görevi siler (çit ve toplanma noktaları: desteklenmiyorsa yoksayılır). → { ok } | { ok: false, error, part }
+  clearMission() {
+    return this._missionOp(async () => {
+      const r = await this._clearPart(0);
+      if (!r.ok) return { ...r, part: 'mission' };
+      for (const type of [1, 2]) {
+        if (this._noMissionType.has(type) || !this.ready) continue;
+        const c = await this._clearPart(type, Math.min(1, this.missionRetries));
+        if (!c.ok && (c.error === 'unsupported' || c.error === 'timeout')) this._noMissionType.add(type);
+      }
+      this._setMission(null);
+      this._touch(true);
+      return { ok: true };
+    });
+  }
+
+  // Görevi başlatır: gerekirse kurar, görev kipine (ArduPilot: AUTO, PX4: Mission) geçer, MISSION_START gönderir.
+  //   Başarısızlıkta step: 'arm' | 'mode' | 'start'. ArduCopter yerdeyken MISSION_START ister (ilk öğe kalkış olmalı);
+  //   öteki araçlarda kip değişimi yeterlidir, MISSION_START'ın sonucu yoksayılır.
+  async startMission() {
+    if (!this.ready) return { ok: false, error: 'not_connected' };
+    const px4 = this.firmware === 'px4';
+    if (!px4 && this.firmware !== 'ardupilot') return { ok: false, error: 'unsupported' };
+    const mode = px4 ? 'Mission' : 'AUTO';
+    if (!this._hasMode(mode)) return { ok: false, error: 'unsupported' };
+    if (!this.armed) {
+      const a = await this.arm(true);
+      if (!a.ok) return { ...a, step: 'arm' };
+      await this._waitFor(() => this.armed, 3000);
+    }
+    const m = await this.setMode(mode);
+    if (!m.ok) return { ...m, step: 'mode' };
+    this.missionState.reached = -1;
+    const r = await this.command(CMD.MISSION_START, [0, 0], { retries: 1 });
+    if (!r.ok && !px4 && (this.vehicle === 'copter' || this.vehicle === 'heli')) return { ...r, step: 'start' };
+    return { ok: true, mode: m.mode };
+  }
+
+  // Görevi duraklat (bekle) / sürdür (görev kipine dön)
+  pauseMission() { return this.hold(); }
+
+  resumeMission() {
+    if (!this.ready) return Promise.resolve({ ok: false, error: 'not_connected' });
+    return this.setMode(this.firmware === 'px4' ? 'Mission' : 'AUTO');
+  }
+
+  // Etkin görev öğesini değiştirir (index: belgedeki öğe sırası, 0'dan). Önce DO_SET_MISSION_CURRENT komutu;
+  // araç desteklemiyorsa eski MISSION_SET_CURRENT iletisi (sonuç MISSION_CURRENT'tan anlaşılır). → { ok, index }
+  async setMissionCurrent(index) {
+    if (!this.ready) return { ok: false, error: 'not_connected' };
+    const i = Number(index);
+    if (!Number.isInteger(i) || i < 0 || i > 65000 || index === null || index === '') return { ok: false, error: 'invalid' };
+    const seq = i + this._missionOffset();
+    const r = await this.command(CMD.DO_SET_MISSION_CURRENT, [seq, 0], { retries: 1 });
+    if (r.ok) return { ...r, index: i };
+    if (r.result !== null && r.result !== MAV_RESULT_UNSUPPORTED) return { ...r, index: i }; // araç açıkça reddetti
+    const at = Date.now();
+    if (!this._send('MISSION_SET_CURRENT', { target_system: this.sysid, target_component: this.compid, seq })) return { ok: false, error: 'not_connected', index: i };
+    const ok = await this._waitFor(() => this._missionCurAt >= at && this.missionState.seq === seq, 2000);
+    return ok ? { ok: true, result: null, resultName: null, index: i } : { ok: false, result: r.result, resultName: r.resultName, error: r.error || 'timeout', index: i };
+  }
 
   // ---- Motor testi ----
   // ArduPilot: motor = test sırası (1 = A, 2 = B …; frame.motors[].testOrder). PX4: motor = motor numarası (frame.motors[].n).
@@ -1370,6 +1682,23 @@ const HANDLERS = {
     if (p) p.ack(f.result, f);
   },
   COMMAND_LONG(f) { this._onCommandLong(f); },
+  // Görev protokolü: aktarım iletileri süren adıma verilir
+  MISSION_REQUEST_INT(f) { this._onMissionMsg('MISSION_REQUEST_INT', f); },
+  MISSION_REQUEST(f) { this._onMissionMsg('MISSION_REQUEST', f); },
+  MISSION_COUNT(f) { this._onMissionMsg('MISSION_COUNT', f); },
+  MISSION_ITEM_INT(f) { this._onMissionMsg('MISSION_ITEM_INT', f); },
+  MISSION_ITEM(f) { this._onMissionMsg('MISSION_ITEM', f); },
+  MISSION_ACK(f) { this._onMissionMsg('MISSION_ACK', f); },
+  MISSION_CURRENT(f) {
+    const s = this.missionState;
+    s.seq = f.seq;
+    s.current = Math.max(-1, f.seq - this._missionOffset()); // ArduPilot'ta seq 0 = ev → -1
+    if (f.total > 0 && f.total !== 65535) s.count = f.total;  // eski yazılımlarda alan yoktur (0)
+    this._missionCurAt = Date.now();
+  },
+  MISSION_ITEM_REACHED(f) {
+    this.missionState.reached = Math.max(-1, f.seq - this._missionOffset());
+  },
   PARAM_VALUE(f, msg) { this._onParamValue(f, msg); },
   MAG_CAL_PROGRESS(f) { this._onMagCalProgress(f); },
   MAG_CAL_REPORT(f) { this._onMagCalReport(f); },
