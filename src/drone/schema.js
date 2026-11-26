@@ -6,12 +6,15 @@
 
   const FIRMWARES = ['ardupilot', 'px4', 'betaflight', 'sitl'];
   const LINKS = ['serial', 'tcp', 'udp', 'udpin'];
+  // Araç türü: 'auto' = bağlanınca araçtan öğrenilir (o zamana dek son bilinen tür, yoksa kopter)
+  const VEHICLE_TYPES = ['auto', 'copter', 'plane', 'vtol', 'heli', 'rover', 'boat', 'sub'];
   const BAUDS = ['9600', '19200', '38400', '57600', '115200', '230400', '460800', '500000', '921600', '1000000', '1500000', '2000000'];
   const FW_COLOR = { ardupilot: '#22d3ee', px4: '#60a5fa', betaflight: '#fbbf24', sitl: '#a78bfa' };
 
   // type: text | number | select | bool | textarea; when: (d) => görünür mü
   const FIELDS = [
     { key: 'firmware', type: 'select', def: 'ardupilot', opts: FIRMWARES, span: 3 },
+    { key: 'vehicleType', type: 'select', def: 'auto', opts: VEHICLE_TYPES, span: 3 },
     { key: 'linkType', type: 'select', def: 'serial', opts: LINKS, span: 3 },
     { key: 'serialPort', type: 'text', def: '', mono: true, span: 2, when: (d) => d.linkType === 'serial' },
     { key: 'baud', type: 'select', def: '115200', opts: BAUDS, raw: true, when: (d) => d.linkType === 'serial' },
@@ -23,7 +26,7 @@
     { key: 'autoConnect', type: 'bool', def: true, span: 3 },
     { key: 'notes', type: 'textarea', def: '', rows: 2, span: 3 },
   ];
-  const KEYS = ['name', 'createdAt', ...FIELDS.map((f) => f.key)];
+  const KEYS = ['name', 'createdAt', 'detected', ...FIELDS.map((f) => f.key)];
 
   // Yazılım türü ya da bağlantı türü seçilince önerilen bağlantı değerleri
   const PRESETS = {
@@ -50,6 +53,9 @@
       else if (f.type === 'select') { if (f.opts.includes(String(v))) d[f.key] = String(v); }
       else d[f.key] = String(v).slice(0, f.type === 'textarea' ? 4000 : 300);
     }
+    // Araçtan öğrenilen tür (bağlıyken yazılır): { vehicle, mavType, frame }
+    const det = src.detected;
+    d.detected = det && typeof det === 'object' && typeof det.vehicle === 'string' ? { vehicle: det.vehicle.slice(0, 20), mavType: Number(det.mavType) || 0, frame: String(det.frame || '').slice(0, 60) } : null;
     d.serialPort = d.serialPort.trim();
     d.host = d.host.trim();
     return d;
@@ -61,6 +67,13 @@
     if (d.linkType === 'serial' && !d.serialPort) bad.push('serialPort');
     if ((d.linkType === 'tcp' || d.linkType === 'udp') && !d.host) bad.push('host');
     return bad;
+  }
+
+  // Geçerli araç türü: elle seçilen, yoksa araçtan öğrenilen, o da yoksa kopter
+  function vehicleOf(d) {
+    if (d && d.vehicleType && d.vehicleType !== 'auto') return d.vehicleType;
+    const v = d && d.detected && d.detected.vehicle;
+    return VEHICLE_TYPES.includes(v) && v !== 'auto' ? v : 'copter';
   }
 
   // Kartta ve başlıkta gösterilen bağlantı özeti
@@ -87,7 +100,7 @@
   }
   const FLIGHT_KEYS = ['name', 'droneId', 'cameraId', 'layout', 'notes', 'createdAt'];
 
-  const api = { FIRMWARES, LINKS, BAUDS, FW_COLOR, FIELDS, KEYS, PRESETS, LAYOUTS, FLIGHT_KEYS, defaults, normalize, validate, display, linkConfig, normalizeFlight };
+  const api = { VEHICLE_TYPES, vehicleOf, FIRMWARES, LINKS, BAUDS, FW_COLOR, FIELDS, KEYS, PRESETS, LAYOUTS, FLIGHT_KEYS, defaults, normalize, validate, display, linkConfig, normalizeFlight };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.DRONE = api;
 })(typeof self !== 'undefined' ? self : this);

@@ -424,6 +424,7 @@ modules.motors = {
       </div></div>`));
     enhanceNumbers(host);
     this.host = host;
+    this.sig = null; // modül yeniden kurulduğunda çizim atlanmasın
     host.querySelector('[data-safe]').onchange = (e) => { M.safe = e.target.checked; this.paint(); };
     host.querySelector('[data-thr]').addEventListener('input', (e) => { M.throttle = clampPx(Math.round(Number(e.target.value) || 8), 1, 100); });
     host.querySelector('[data-sec]').addEventListener('input', (e) => { M.seconds = clampPx(Math.round(Number(e.target.value) || 2), 1, 30); });
@@ -432,25 +433,35 @@ modules.motors = {
     host.querySelector('[data-a="all"]').onclick = () => this.sequence();
     host.querySelector('[data-frame]').addEventListener('click', (e) => { const b = e.target.closest('[data-motor]'); if (b) this.test(Number(b.dataset.motor)); });
     this.paint();
+    requestAnimationFrame(() => this.paint()); // pencere bu modülle açıldıysa kap henüz sayfaya eklenmemiş olabilir
     if (!isBf() && st.linked && !st.frame && st.params && !st.params.received && !st.params.loading) call('fetchParams'); // çerçeve yapısı parametrelerden okunur
   },
 
+  // Geçerli araç türü: bağlıyken araçtan, değilken kayıttan (elle seçilen ya da son bilinen)
+  kind() { return st.linked && st.vehicle && st.vehicle !== 'other' ? st.vehicle : DRONE.vehicleOf(drone); },
+
   motors() {
-    if (st.frame && st.frame.motors && st.frame.motors.length) return { known: true, list: st.frame.motors };
+    const kind = this.kind();
+    if (st.frame && st.frame.motors && st.frame.motors.length) return { known: true, kind, list: st.frame.motors };
+    // Sabit kanat ve helikopter: uçuş kartı bu ekrandan motor denemesini desteklemez
+    if (kind === 'plane' || kind === 'heli') return { known: false, kind, fixed: true, list: [], note: t(`dr.mt.note.${kind}`) };
+    // Kara / deniz aracı: 1 = gaz, 2 = direksiyon
+    if (kind === 'rover' || kind === 'boat') return { known: false, kind, fixed: true, note: t('dr.mt.note.rover'), list: [{ n: 1, testOrder: 1, x: 0, y: -0.75, dir: null, label: t('dr.mt.throttleOut') }, { n: 2, testOrder: 2, x: 0, y: 0.75, dir: null, label: t('dr.mt.steering') }] };
     // Yapı okunamadıysa: seçilen sayıda motor, çember üzerinde
     const n = M.manualCount;
-    return { known: false, list: Array.from({ length: n }, (_, i) => ({ n: i + 1, testOrder: i + 1, x: Math.sin((i / n) * 2 * Math.PI + Math.PI / n), y: Math.cos((i / n) * 2 * Math.PI + Math.PI / n), dir: null })) };
+    return { known: false, kind, note: t('dr.mt.unknownFrame'), list: Array.from({ length: n }, (_, i) => ({ n: i + 1, testOrder: i + 1, x: Math.sin((i / n) * 2 * Math.PI + Math.PI / n), y: Math.cos((i / n) * 2 * Math.PI + Math.PI / n), dir: null })) };
   },
 
   paint() {
     const host = this.host;
     if (!host || !host.isConnected || moduleId !== 'motors') return;
-    const { known, list } = this.motors();
-    const sig = `${known}|${list.map((m) => `${m.n},${m.x},${m.y},${m.dir}`).join(';')}|${M.active}|${M.safe}|${st.linked}`;
+    const { known, list, kind, fixed, note } = this.motors();
+    const sig = `${kind}|${known}|${list.map((m) => `${m.n},${m.x},${m.y},${m.dir}`).join(';')}|${M.active}|${M.safe}|${st.linked}`;
     if (this.sig === sig) return;
     this.sig = sig;
-    host.querySelector('[data-manual]').classList.toggle('hidden', known);
-    host.querySelector('[data-frameinfo]').textContent = known ? `${st.frame.name} · ${t('dr.motorCount', { n: list.length })}` : t('dr.mt.unknownFrame');
+    host.querySelector('[data-manual]').classList.toggle('hidden', known || !!fixed);
+    for (const b of host.querySelectorAll('.cam-btns .btn')) b.disabled = !list.length;
+    host.querySelector('[data-frameinfo]').textContent = known ? `${st.frame.name} · ${t('dr.motorCount', { n: list.length })}` : note;
     const S = 420; const C = S / 2; const R = 150;
     const px = (m) => [C + m.x * R, C - m.y * R];
     const letter = (o) => String.fromCharCode(64 + o);
@@ -460,12 +471,21 @@ modules.motors = {
       const [x0, y0] = pt(a0); const [x1, y1] = pt(a1);
       return `<path d="M${x0} ${y0} A${r} ${r} 0 0 ${dir === 'cw' ? 1 : 0} ${x1} ${y1}" class="rot ${dir}" marker-end="url(#arr-${dir})"/>`;
     };
+    // Gövde çizimi araç türüne göre (üstten görünüş, burun yukarıda)
+    const plane = `<path d="M${C} 44 c12 0 16 18 16 40 v52 l150 44 v26 l-150 -18 l-4 70 l44 26 v18 l-56 -10 l-56 10 v-18 l44 -26 l-4 -70 l-150 18 v-26 l150 -44 v-52 c0 -22 4 -40 16 -40 z" class="body"/>`;
+    const shape = kind === 'plane' || kind === 'vtol' ? plane
+      : kind === 'heli' ? `<circle cx="${C}" cy="${C - 20}" r="150" class="arm" fill="none" stroke-dasharray="6 8"/><path d="M${C - 34} ${C - 70} q34 -40 68 0 v70 q-10 40 -22 60 v110 h-24 v-110 q-12 -20 -22 -60 z" class="body"/><path d="M${C - 40} ${C + 172} h80" class="arm"/>`
+      : kind === 'rover' ? `<rect x="${C - 62}" y="${C - 110}" width="124" height="220" rx="22" class="body"/><rect x="${C - 92}" y="${C - 96}" width="28" height="56" rx="8" class="body"/><rect x="${C + 64}" y="${C - 96}" width="28" height="56" rx="8" class="body"/><rect x="${C - 92}" y="${C + 40}" width="28" height="56" rx="8" class="body"/><rect x="${C + 64}" y="${C + 40}" width="28" height="56" rx="8" class="body"/>`
+      : kind === 'boat' ? `<path d="M${C} ${C - 150} q70 80 70 190 l-8 100 h-124 l-8 -100 q0 -110 70 -190 z" class="body"/>`
+      : kind === 'sub' ? `<rect x="${C - 46}" y="${C - 130}" width="92" height="260" rx="46" class="body"/>`
+      : `<rect x="${C - 30}" y="${C - 38}" width="60" height="76" rx="16" class="body"/><path d="M${C} ${C - 62} l-12 20 h24 z" class="nose"/>`;
+    const arms = kind === 'plane' || kind === 'heli' || kind === 'rover' || kind === 'boat' ? [] : list;
     host.querySelector('[data-frame]').innerHTML = `<svg viewBox="0 0 ${S} ${S}" class="${M.safe && st.linked ? '' : 'locked'}">
       <defs><marker id="arr-cw" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="ah cw"/></marker>
       <marker id="arr-ccw" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="ah ccw"/></marker></defs>
-      ${list.map((m) => { const [x, y] = px(m); return `<line x1="${C}" y1="${C}" x2="${x}" y2="${y}" class="arm"/>`; }).join('')}
-      <rect x="${C - 30}" y="${C - 38}" width="60" height="76" rx="16" class="body"/><path d="M${C} ${C - 62} l-12 20 h24 z" class="nose"/><text x="${C}" y="${C - 70}" class="fwd">${esc(t('dr.mt.front'))}</text>
-      ${list.map((m) => { const [x, y] = px(m); return `<g class="motor ${M.active === m.testOrder ? 'on' : ''}" data-motor="${m.testOrder}"><circle cx="${x}" cy="${y}" r="30"/>${m.dir ? arc(x, y, m.dir) : ''}<text x="${x}" y="${y + 2}" class="ml">${letter(m.testOrder)}</text><text x="${x}" y="${y + 19}" class="mn">${m.n}</text></g>`; }).join('')}
+      ${arms.map((m) => { const [x, y] = px(m); return `<line x1="${C}" y1="${C}" x2="${x}" y2="${y}" class="arm"/>`; }).join('')}
+      ${shape}<text x="${C}" y="${kind === 'plane' || kind === 'vtol' ? 34 : C - 70}" class="fwd">${esc(t('dr.mt.front'))}</text>
+      ${list.map((m) => { const [x, y] = px(m); return `<g class="motor ${M.active === m.testOrder ? 'on' : ''}" data-motor="${m.testOrder}"><circle cx="${x}" cy="${y}" r="30"/>${m.dir ? arc(x, y, m.dir) : ''}<text x="${x}" y="${y + 2}" class="ml">${letter(m.testOrder)}</text><text x="${x}" y="${y + 19}" class="mn">${m.n}</text>${m.label ? `<text x="${x + 44}" y="${y + 5}" class="fwd" style="text-anchor:start">${esc(m.label)}</text>` : ''}</g>`; }).join('')}
     </svg><div class="dr-legend"><span><i class="cw"></i>${esc(t('dr.mt.cw'))}</span><span><i class="ccw"></i>${esc(t('dr.mt.ccw'))}</span><span>${esc(t('dr.mt.legend'))}</span></div>`;
   },
 

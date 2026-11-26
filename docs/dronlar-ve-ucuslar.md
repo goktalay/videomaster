@@ -17,6 +17,12 @@ Bağlantı Mission Planner'daki gibi tanımlanır:
 Yazılım türleri: **ArduPilot**, **PX4**, **SITL** (benzetim; MAVLink) ve **Betaflight** (MSP + komut satırı; seri port ya da
 Betaflight SITL için TCP 127.0.0.1:5761).
 
+**Araç türü**: dron eklerken Kopter, Sabit kanat, VTOL, Helikopter, Kara aracı, Tekne ya da Denizaltı seçilebilir.
+"Kendiliğinden" bırakılırsa tür bağlanınca araçtan öğrenilir ve kayda yazılır; bağlı değilken son bilinen tür kullanılır.
+Dron kartındaki simge ve motor testi ekranı bu türe göre gösterilir: sabit kanatta ve helikopterde uçuş kartı motor testini
+desteklemediği için yalnızca açıklama görünür; VTOL'de kaldırma motorları, kara ve deniz araçlarında gaz ve direksiyon çıkışları
+denenir.
+
 ## Dron penceresi
 
 - **Solda modüller**

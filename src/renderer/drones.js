@@ -144,9 +144,9 @@ function droneChip(id) {
 
 function droneCard(d, data) {
   const el = h(`<div class="card drone-card" data-id="${esc(d.id)}" style="--c:${DRONE.FW_COLOR[d.firmware] || '#22d3ee'}">
-    <div class="drone-art">${droneGlyph()}<div class="quick"><button class="icon-btn" data-a="logs" title="${esc(t('dl.title'))}">${icon('history')}</button><button class="icon-btn" data-a="edit" title="${esc(t('dr.editTitle'))}">${icon('gear')}</button><button class="icon-btn" data-a="open" title="${esc(t('common.open'))}">${icon('expand')}</button></div></div>
+    <div class="drone-art">${droneGlyph(DRONE.vehicleOf(d))}<div class="quick"><button class="icon-btn" data-a="logs" title="${esc(t('dl.title'))}">${icon('history')}</button><button class="icon-btn" data-a="edit" title="${esc(t('dr.editTitle'))}">${icon('gear')}</button><button class="icon-btn" data-a="open" title="${esc(t('common.open'))}">${icon('expand')}</button></div></div>
     <div class="conn-body"><div class="card-title">${esc(d.name)}</div><div class="card-sub">${esc(DRONE.display(d))}</div>
-      <div class="card-foot"><span class="tag proto-tag">${icon(FW_ICON[d.firmware] || 'upload')}${esc(t(`dr.o.firmware.${d.firmware}`))}</span><span data-chip>${droneChip(d.id)}</span></div></div></div>`);
+      <div class="card-foot"><span class="tag proto-tag">${icon(FW_ICON[d.firmware] || 'upload')}${esc(t(`dr.o.firmware.${d.firmware}`))}</span><span class="tag">${esc(t(`dr.o.vehicleType.${DRONE.vehicleOf(d)}`))}</span><span data-chip>${droneChip(d.id)}</span></div></div></div>`);
   el.ondblclick = () => window.api.openDrone(d.id);
   el.querySelector('[data-a="open"]').onclick = (e) => { e.stopPropagation(); window.api.openDrone(d.id); };
   el.querySelector('[data-a="edit"]').onclick = (e) => { e.stopPropagation(); editDrone(d); };
@@ -190,10 +190,27 @@ function flightCard(f, data) {
 }
 
 // Dört pervaneli dron simgesi (kartlarda ve motor testinde kullanılan çizimle aynı dil)
-function droneGlyph() {
-  return `<svg viewBox="0 0 120 80" class="drone-glyph" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
-    <path d="M38 26 L82 54 M82 26 L38 54"/><rect x="50" y="32" width="20" height="16" rx="5" fill="currentColor" stroke="none" opacity=".9"/>
-    <circle cx="34" cy="23" r="13"/><circle cx="86" cy="23" r="13"/><circle cx="34" cy="57" r="13"/><circle cx="86" cy="57" r="13"/></svg>`;
+// Kart resmi: araç türüne göre simge
+function droneGlyph(kind = 'copter') {
+  const svg = (inner) => `<svg viewBox="0 0 120 80" class="drone-glyph" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+  const body = (d) => `<path d="${d}" fill="currentColor" stroke="none" opacity=".9"/>`;
+  switch (kind) {
+    case 'plane': // sabit kanat: üstten görünüş
+      return svg(`${body('M60 6 C64 6 66 12 66 20 L66 32 L112 44 L112 52 L66 46 L65 62 L78 70 L78 75 L60 72 L42 75 L42 70 L55 62 L54 46 L8 52 L8 44 L54 32 L54 20 C54 12 56 6 60 6 Z')}`);
+    case 'vtol': // sabit kanat + dört kaldırma motoru
+      return svg(`${body('M60 8 C63 8 65 13 65 20 L65 34 L104 42 L104 48 L65 45 L64 60 L74 66 L74 70 L60 68 L46 70 L46 66 L56 60 L55 45 L16 48 L16 42 L55 34 L55 20 C55 13 57 8 60 8 Z')}<path d="M30 22 V62 M90 22 V62"/><circle cx="30" cy="20" r="9"/><circle cx="90" cy="20" r="9"/><circle cx="30" cy="62" r="9"/><circle cx="90" cy="62" r="9"/>`);
+    case 'heli':
+      return svg(`<circle cx="52" cy="38" r="30" opacity=".55"/><path d="M22 38 H82 M52 8 V68" opacity=".55"/>${body('M40 30 C40 24 46 22 54 22 C64 22 70 28 72 34 L104 36 L104 42 L72 44 C68 52 62 56 54 56 C46 56 40 52 40 46 Z')}<path d="M104 30 V48"/>`);
+    case 'rover':
+      return svg(`<rect x="34" y="18" width="52" height="44" rx="8" fill="currentColor" stroke="none" opacity=".9"/><rect x="22" y="16" width="12" height="18" rx="4"/><rect x="86" y="16" width="12" height="18" rx="4"/><rect x="22" y="46" width="12" height="18" rx="4"/><rect x="86" y="46" width="12" height="18" rx="4"/>`);
+    case 'boat':
+      return svg(`${body('M60 6 C74 20 80 34 80 52 L78 72 L42 72 L40 52 C40 34 46 20 60 6 Z')}<path d="M52 44 H68 M52 54 H68" stroke="var(--bg-2)" stroke-width="3"/>`);
+    case 'sub':
+      return svg(`${body('M14 40 C14 28 30 24 60 24 C90 24 106 30 106 40 C106 50 90 56 60 56 C30 56 14 52 14 40 Z')}<rect x="50" y="12" width="18" height="14" rx="4" fill="currentColor" stroke="none" opacity=".9"/><path d="M106 30 L114 24 V56 L106 50"/>`);
+    default:
+      return svg(`<path d="M38 26 L82 54 M82 26 L38 54"/><rect x="50" y="32" width="20" height="16" rx="5" fill="currentColor" stroke="none" opacity=".9"/>
+        <circle cx="34" cy="23" r="13"/><circle cx="86" cy="23" r="13"/><circle cx="34" cy="57" r="13"/><circle cx="86" cy="57" r="13"/>`);
+  }
 }
 
 // --- Görevler -----------------------------------------------------------------------------------

@@ -977,6 +977,16 @@ function droneLogs() {
 
 // Bir dronun olaylarını ilgili pencerelere dağıtır: dron penceresi + o dronu kullanan uçuş pencereleri
 function droneEmit(channel, payload) {
+  // Araç türü araçtan öğrenilince kayda yazılır: bağlı değilken de doğru simge ve yerleşim gösterilsin
+  if (channel === 'drone:state' && payload.state && payload.state.linked && payload.state.vehicle && payload.state.vehicle !== 'other' && !replays.has(payload.id)) {
+    const d = store.drones.find((x) => x.id === payload.id);
+    const frame = (payload.state.frame && payload.state.frame.name) || '';
+    if (d && (!d.detected || d.detected.vehicle !== payload.state.vehicle || d.detected.mavType !== payload.state.mavType || (frame && d.detected.frame !== frame))) {
+      d.detected = { vehicle: payload.state.vehicle, mavType: payload.state.mavType || 0, frame: frame || (d.detected && d.detected.frame) || '' };
+      saveStore();
+      broadcastStore();
+    }
+  }
   const targets = [droneWindows.get(payload.id), ...store.flights.filter((f) => f.droneId === payload.id).map((f) => flightWindows.get(f.id)), replays.has(payload.id) ? flightWindows.get(payload.id) : null];
   for (const w of targets) if (w && !w.isDestroyed()) w.webContents.send(channel, payload);
   if (channel === 'drone:state' && !replays.has(payload.id) && mainWindow && !mainWindow.isDestroyed()) {
